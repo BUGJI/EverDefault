@@ -1,5 +1,5 @@
 # EverDefault
-
+<img src="./src/EverDefault.App/Assets/logo.png" align=right width=150>
 EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「锁住」，一旦被其他软件改动，就自动改回来。
 
 它由两部分组成：

@@ -2,7 +2,7 @@
 ; Compile with build-installer.cmd (which builds dist\ first).
 
 #define MyAppName "EverDefault"
-#define MyAppVersion "1.0.0"
+#define MyAppVersion "1.1.0"
 #define MyAppExeName "EverDefault.App.exe"
 #define MyServiceExeName "EverDefault.Service.exe"
 #define MyServiceName "EverDefault"

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text.RegularExpressions;
 using EverDefault.Core.Engine;
 using EverDefault.Core.Model;
@@ -25,16 +26,8 @@ namespace EverDefault.Service.Modules
 
         public IEnumerable<WatchRegistration> GetWatchTargets(RuleBase rule)
         {
-            var ns = rule as NameSpaceRule;
-            var roots = (ns != null && ns.PathPatterns != null && ns.PathPatterns.Count > 0)
-                ? (IEnumerable<string>)ns.PathPatterns
-                : NameSpaceScanner.DefaultRoots;
-
-            foreach (var root in roots)
-            {
-                if (!string.IsNullOrWhiteSpace(root))
-                    yield return new WatchRegistration { KeyPath = root, Recursive = false };
-            }
+            foreach (var root in ResolveRoots(rule as NameSpaceRule))
+                yield return new WatchRegistration { KeyPath = root, Recursive = false };
         }
 
         public void CaptureBaseline(RuleBase rule)
@@ -48,7 +41,7 @@ namespace EverDefault.Service.Modules
             if (ns == null)
                 return;
 
-            var roots = (ns.PathPatterns != null && ns.PathPatterns.Count > 0) ? ns.PathPatterns : null;
+            var roots = ResolveRoots(ns).ToList();
             var entries = NameSpaceScanner.Scan(_ctx.Registry, roots);
             var changed = false;
 
@@ -86,6 +79,41 @@ namespace EverDefault.Service.Modules
                 catch (Exception ex)
                 {
                     _ctx.WriteTrace("SHChangeNotify failed: " + ex.Message);
+                }
+            }
+        }
+
+        /// <summary>
+        /// Expands HKEY_CURRENT_USER roots into HKEY_USERS\&lt;SID&gt; for every target user,
+        /// mirroring <see cref="DefaultAppHandler"/>. Without this, a rule that uses HKCU would
+        /// scan the service account's own hive instead of the logged-on users'.
+        /// </summary>
+        private IEnumerable<string> ResolveRoots(NameSpaceRule ns)
+        {
+            IEnumerable<string> raw = (ns != null && ns.PathPatterns != null && ns.PathPatterns.Count > 0)
+                ? (IEnumerable<string>)ns.PathPatterns
+                : NameSpaceScanner.DefaultRoots;
+
+            var scope = _ctx.UserScope;
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var candidate in raw)
+            {
+                if (string.IsNullOrWhiteSpace(candidate))
+                    continue;
+
+                var root = candidate.Trim();
+                if (scope == null)
+                {
+                    if (seen.Add(root))
+                        yield return root;
+                    continue;
+                }
+
+                foreach (var expanded in scope.ExpandCurrentUser(root))
+                {
+                    if (seen.Add(expanded))
+                        yield return expanded;
                 }
             }
         }

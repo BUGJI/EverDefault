@@ -8,18 +8,32 @@
 
             <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
                 <StackPanel>
-                    <TextBlock x:Name="StatusTitle" FontSize="15" FontWeight="Bold" />
+                    <DockPanel LastChildFill="True">
+                        <Button x:Name="ModeButton" DockPanel.Dock="Right" Margin="12,0,0,0"
+                                Padding="14,6" FontWeight="Bold" Cursor="Hand" Click="OnModeClick"
+                                ToolTip="点击切换运行模式：用户模式会以管理员权限安装为服务并重启。" />
+                        <TextBlock x:Name="StatusTitle" FontSize="15" FontWeight="Bold"
+                                   VerticalAlignment="Center" TextWrapping="Wrap" />
+                    </DockPanel>
                     <TextBlock x:Name="StatusDetail" Style="{StaticResource HintText}" Margin="0,6,0,0" />
+                    <TextBlock x:Name="ActionStatus" Style="{StaticResource HintText}" Margin="0,6,0,0" />
 
-                    <TextBlock Text="服务控制" Style="{StaticResource SectionHeader}" Margin="0,14,0,6" />
+                    <TextBlock Text="自本次服务启动以来" Style="{StaticResource SectionHeader}" Margin="0,16,0,6" />
                     <StackPanel Orientation="Horizontal">
-                        <Button Content="临时启动" Width="100" Margin="0,0,8,0" Click="OnStartTemporary"
-                                ToolTip="在当前会话中运行，无需管理员权限，关闭控制台窗口即停止监控。" />
-                        <Button Content="安装并启动（需管理员）" Width="180" Margin="0,0,8,0" Click="OnInstall"
-                                ToolTip="注册为开机自启的 Windows 服务，需要管理员权限。" />
-                        <Button Content="启动已安装的服务" Width="140" Click="OnStartInstalled" />
+                        <StackPanel Margin="0,0,32,0">
+                            <TextBlock Text="已记录" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
+                            <TextBlock x:Name="ObservedText" FontSize="24" FontWeight="Bold" Text="0" />
+                        </StackPanel>
+                        <StackPanel Margin="0,0,32,0">
+                            <TextBlock Text="已拦截" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
+                            <TextBlock x:Name="BlockedText" FontSize="24" FontWeight="Bold" Text="0"
+                                       Foreground="{DynamicResource AccentBrush}" />
+                        </StackPanel>
+                        <StackPanel>
+                            <TextBlock Text="拦截失败" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
+                            <TextBlock x:Name="FailedText" FontSize="24" FontWeight="Bold" Text="0" />
+                        </StackPanel>
                     </StackPanel>
-                    <TextBlock x:Name="ActionStatus" Style="{StaticResource HintText}" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>
 
@@ -28,8 +42,8 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
                 <StackPanel>
                     <TextBlock Text="三步上手" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
-                               Text="1. 启动服务：点上面的“临时启动”。第一次使用不需要管理员权限。&#10;&#10;2. 创建规则：到左侧“规则”分类里点『新建』，填好目标后保存；也可以用『测试规则』先跑通流程。&#10;&#10;3. 验证：用 regedit 改动被保护的键，几秒后到“日志”页即可看到记录与处理结果。" />
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
+                               Text="1. 打开软件即自动连接服务：已安装则启动服务模式，未安装则以用户模式临时运行（无需管理员）。&#10;&#10;2. 创建规则：到左侧“规则”分类里点『新建』，填好目标后保存；也可以用『测试规则』先跑通流程。&#10;&#10;3. 验证：用 regedit 改动被保护的键，几秒后到“日志”页即可看到记录与处理结果。&#10;&#10;想长期后台守护，点上方“用户模式”按钮即可安装为服务模式。" />
                 </StackPanel>
             </Border>
         </StackPanel>

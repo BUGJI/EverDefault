@@ -17,8 +17,13 @@ namespace EverDefault.App
             _host = host;
             InitializeComponent();
 
+            ThemeBox.ItemsSource = Display.Options<ThemeMode>(Display.Theme);
             OsBox.ItemsSource = Display.Options<OsFamily>(Display.Os);
             UserScopeBox.ItemsSource = Display.Options<UserScopeMode>(Display.UserScope);
+            UpdateIntervalBox.ItemsSource = Display.Options<UpdateInterval>(Display.UpdateIntervalText);
+
+            StartupBox.Checked += (s, e) => HideToTrayBox.IsEnabled = true;
+            StartupBox.Unchecked += (s, e) => HideToTrayBox.IsEnabled = false;
 
             SaveButton.IsEnabled = false;
         }
@@ -78,16 +83,27 @@ namespace EverDefault.App
                 return;
             }
 
-            MonitoringBox.IsChecked = settings.MonitoringEnabled;
-            StartupBox.IsChecked = settings.RunAtStartup;
-            OsBox.SelectedValue = settings.OsOverride;
-            RetentionBox.Text = settings.LogRetentionDays.ToString();
-            UserScopeBox.SelectedValue = settings.TargetUserScope;
-            AntivirusBox.IsChecked = settings.RemindAntivirusWhitelist;
+            ApplyToUi(settings);
 
             _loaded = true;
             SaveButton.IsEnabled = true;
             StatusText.Text = "已载入当前设置。";
+
+            _host.ApplyUserSettings(settings);
+        }
+
+        private void ApplyToUi(AppSettings settings)
+        {
+            MonitoringBox.IsChecked = settings.MonitoringEnabled;
+            StartupBox.IsChecked = settings.RunAtStartup;
+            HideToTrayBox.IsChecked = settings.HideToTrayOnStartup;
+            HideToTrayBox.IsEnabled = settings.RunAtStartup;
+            ThemeBox.SelectedValue = settings.Theme;
+            OsBox.SelectedValue = settings.OsOverride;
+            RetentionBox.Text = settings.LogRetentionDays.ToString();
+            UserScopeBox.SelectedValue = settings.TargetUserScope;
+            CheckUpdatesBox.IsChecked = settings.CheckForUpdates;
+            UpdateIntervalBox.SelectedValue = settings.UpdateCheckInterval;
         }
 
         private async void OnSave(object sender, RoutedEventArgs e)
@@ -100,10 +116,13 @@ namespace EverDefault.App
             {
                 MonitoringEnabled = MonitoringBox.IsChecked == true,
                 RunAtStartup = StartupBox.IsChecked == true,
+                HideToTrayOnStartup = HideToTrayBox.IsChecked == true,
+                Theme = (ThemeMode)ThemeBox.SelectedValue,
                 OsOverride = (OsFamily)OsBox.SelectedValue,
                 LogRetentionDays = retention,
                 TargetUserScope = (UserScopeMode)UserScopeBox.SelectedValue,
-                RemindAntivirusWhitelist = AntivirusBox.IsChecked == true
+                CheckForUpdates = CheckUpdatesBox.IsChecked == true,
+                UpdateCheckInterval = (UpdateInterval)UpdateIntervalBox.SelectedValue
             };
 
             var response = await _host.SendAsync(IpcProtocol.CommandSaveSettings, settings);
@@ -114,6 +133,7 @@ namespace EverDefault.App
             }
 
             StatusText.Text = "已保存设置。";
+            _host.ApplyUserSettings(settings);
             _host.Refresh();
         }
 

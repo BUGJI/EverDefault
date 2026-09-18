@@ -3,6 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="导入应用支持的格式" Height="580" Width="640"
         MinHeight="440" MinWidth="520"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="14">
         <Grid.RowDefinitions>
@@ -12,7 +14,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="#FF444444"
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                    Text="选择一个应用并扫描，EverDefault 会自动找出它为哪些文件类型注册了打开方式，并按 ProgId 分组创建规则（同一分组共用一个 ProgId，因此每组一条规则）。" />
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
@@ -31,7 +33,7 @@
                     <DataTemplate>
                         <StackPanel Margin="0,3">
                             <TextBlock Text="{Binding ProgId}" FontWeight="SemiBold" />
-                            <TextBlock Text="{Binding ExtensionsText}" Foreground="#FF888888"
+                            <TextBlock Text="{Binding ExtensionsText}" Foreground="{DynamicResource TextMutedBrush}"
                                        FontSize="11" TextWrapping="Wrap" />
                         </StackPanel>
                     </DataTemplate>

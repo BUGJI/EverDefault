@@ -54,6 +54,8 @@ namespace EverDefault.Service
                     console = true;
             }
 
+            host.HostMode = console ? ServiceHostMode.User : ServiceHostMode.Service;
+
             if (console)
             {
                 RunConsole(host);

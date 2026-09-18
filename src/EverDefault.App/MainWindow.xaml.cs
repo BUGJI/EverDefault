@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
@@ -27,6 +28,8 @@ namespace EverDefault.App
 
         private bool _refreshing;
         private bool _serviceRunning;
+        private bool _settingsLoaded;
+        private bool _updateBusy;
 
         public MainWindow()
         {
@@ -188,6 +191,85 @@ namespace EverDefault.App
 
             foreach (var page in _appPages)
                 page.ApplySnapshot(snapshot);
+
+            if (snapshot.ServiceRunning && !_settingsLoaded)
+            {
+                _settingsLoaded = true;
+                LoadAndApplySettings();
+            }
+        }
+
+        private async void LoadAndApplySettings()
+        {
+            try
+            {
+                var response = await SendAsync(IpcProtocol.CommandGetSettings);
+                if (!response.Success)
+                    return;
+
+                var settings = PipeJson.Deserialize<AppSettings>(response.Payload);
+                if (settings != null)
+                    ApplyUserSettings(settings);
+            }
+            catch (Exception)
+            {
+                // Settings are optional; ignore transient failures.
+            }
+        }
+
+        public void ApplyUserSettings(AppSettings settings)
+        {
+            if (settings == null)
+                return;
+
+            try
+            {
+                ThemeManager.Apply(settings.Theme);
+            }
+            catch (Exception)
+            {
+                // A theme failure must not block the remaining settings.
+            }
+
+            try
+            {
+                StartupRegistration.Apply(settings.RunAtStartup, settings.HideToTrayOnStartup);
+            }
+            catch (Exception)
+            {
+                // Non-fatal.
+            }
+
+            if (settings.CheckForUpdates)
+                CheckForUpdates(settings.UpdateCheckInterval);
+        }
+
+        private async void CheckForUpdates(UpdateInterval interval)
+        {
+            if (_updateBusy || !UpdateChecker.IsDue(interval))
+                return;
+
+            _updateBusy = true;
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info != null && info.Available)
+                {
+                    var result = MessageBox.Show(this,
+                        "发现新版本 " + info.LatestTag + "（当前 " + UpdateChecker.CurrentVersion() + "）。\n\n是否打开发布页面？",
+                        "检查更新", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                    if (result == MessageBoxResult.Yes && !string.IsNullOrEmpty(info.ReleaseUrl))
+                        Process.Start(info.ReleaseUrl);
+                }
+            }
+            catch (Exception)
+            {
+                // Network failures are non-fatal.
+            }
+            finally
+            {
+                _updateBusy = false;
+            }
         }
 
         private async void OnExport(object sender, RoutedEventArgs e)

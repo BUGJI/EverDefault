@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using EverDefault.Core.Model;
 using EverDefault.Ipc;
 
 namespace EverDefault.App
@@ -18,6 +19,9 @@ namespace EverDefault.App
         void ShowWarning(string message);
 
         bool Confirm(string message);
+
+        /// <summary>Applies UI-side settings (theme, startup entry, update check).</summary>
+        void ApplyUserSettings(AppSettings settings);
     }
 
     /// <summary>A page that reacts to the periodic status/rules/log snapshot.</summary>

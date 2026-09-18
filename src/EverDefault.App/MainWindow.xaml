@@ -3,11 +3,13 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="EverDefault - 注册表守护" Height="720" Width="1120"
         MinHeight="560" MinWidth="900"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
         WindowStartupLocation="CenterScreen"
         Loaded="OnLoaded">
     <Window.Resources>
         <Style x:Key="NavItem" TargetType="RadioButton">
-            <Setter Property="Foreground" Value="#FF333333" />
+            <Setter Property="Foreground" Value="{DynamicResource NavTextBrush}" />
             <Setter Property="FontSize" Value="13" />
             <Setter Property="Padding" Value="12,8" />
             <Setter Property="Margin" Value="0,1" />
@@ -23,11 +25,11 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="bd" Property="Background" Value="#FFEDEDED" />
+                                <Setter TargetName="bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
                             </Trigger>
                             <Trigger Property="IsChecked" Value="True">
                                 <Setter TargetName="bd" Property="Background"
-                                        Value="{StaticResource AccentBrush}" />
+                                        Value="{DynamicResource AccentBrush}" />
                                 <Setter Property="Foreground" Value="White" />
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -48,7 +50,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="#FFF7F7F7" BorderBrush="#FFE0E0E0"
+        <Border Grid.Row="0" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSoftBrush}"
                 BorderThickness="0,0,0,1" Padding="12,8">
             <DockPanel LastChildFill="False">
                 <TextBlock x:Name="StatusText" DockPanel.Dock="Left" VerticalAlignment="Center"
@@ -72,12 +74,12 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Border Grid.Column="0" Background="#FFF7F7F7" BorderBrush="#FFE0E0E0"
+            <Border Grid.Column="0" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSoftBrush}"
                     BorderThickness="0,0,1,0">
                 <StackPanel Margin="8,10">
                     <RadioButton x:Name="NavHome" Content="主页" Style="{StaticResource NavItem}"
                                  GroupName="nav" Tag="home" Checked="OnNavChecked" />
-                    <TextBlock Text="规则" Margin="12,14,0,4" Foreground="#FF888888"
+                    <TextBlock Text="规则" Margin="12,14,0,4" Foreground="{DynamicResource TextMutedBrush}"
                                FontWeight="Bold" FontSize="12" />
                     <RadioButton x:Name="NavDefaultApp" Content="默认应用"
                                  Style="{StaticResource NavSubItem}" GroupName="nav"

@@ -9,8 +9,16 @@
 
             <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
                 <StackPanel>
+                    <TextBlock Text="常规" Style="{StaticResource SectionHeader}" />
                     <CheckBox x:Name="MonitoringBox" Content="启用监控" Margin="0,4" />
                     <CheckBox x:Name="StartupBox" Content="随系统启动（开机自启）" Margin="0,4" />
+                    <CheckBox x:Name="HideToTrayBox" Content="开机后隐藏到托盘" Margin="24,4,0,4" />
+
+                    <DockPanel Margin="0,4">
+                        <TextBlock Text="主题" Style="{StaticResource FieldLabel}"
+                                   ToolTip="亮色 / 暗色 / 跟随系统。" />
+                        <ComboBox x:Name="ThemeBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                    </DockPanel>
 
                     <DockPanel Margin="0,4">
                         <TextBlock Text="系统版本覆盖" Style="{StaticResource FieldLabel}"
@@ -28,16 +36,25 @@
                                    ToolTip="后台服务以系统身份运行时，规则作用于哪些用户的配置单元。" />
                         <ComboBox x:Name="UserScopeBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
                     </DockPanel>
-
-                    <CheckBox x:Name="AntivirusBox" Content="提醒将程序加入杀毒软件白名单" Margin="0,4" />
-
-                    <StackPanel Orientation="Horizontal" Margin="0,12,0,0">
-                        <Button x:Name="SaveButton" Content="保存设置" Width="100" Margin="0,0,8,0" Click="OnSave" />
-                        <Button Content="重新载入" Width="90" Click="OnReload" />
-                    </StackPanel>
-                    <TextBlock x:Name="StatusText" Style="{StaticResource HintText}" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>
+
+            <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
+                <StackPanel>
+                    <TextBlock Text="更新" Style="{StaticResource SectionHeader}" />
+                    <CheckBox x:Name="CheckUpdatesBox" Content="检查版本更新" Margin="0,4" />
+                    <DockPanel Margin="0,4">
+                        <TextBlock Text="检测频率" Style="{StaticResource FieldLabel}" />
+                        <ComboBox x:Name="UpdateIntervalBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                    </DockPanel>
+                </StackPanel>
+            </Border>
+
+            <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                <Button x:Name="SaveButton" Content="保存设置" Width="100" Margin="0,0,8,0" Click="OnSave" />
+                <Button Content="重新载入" Width="90" Click="OnReload" />
+            </StackPanel>
+            <TextBlock x:Name="StatusText" Style="{StaticResource HintText}" Margin="0,8,0,0" />
         </StackPanel>
     </ScrollViewer>
 </UserControl>

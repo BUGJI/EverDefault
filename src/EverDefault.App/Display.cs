@@ -90,6 +90,26 @@ namespace EverDefault.App
             }
         }
 
+        public static string Theme(ThemeMode mode)
+        {
+            switch (mode)
+            {
+                case ThemeMode.Light: return "亮色";
+                case ThemeMode.Dark: return "暗色";
+                default: return "跟随系统";
+            }
+        }
+
+        public static string UpdateIntervalText(UpdateInterval interval)
+        {
+            switch (interval)
+            {
+                case UpdateInterval.Daily: return "每天";
+                case UpdateInterval.Monthly: return "每月";
+                default: return "每周";
+            }
+        }
+
         /// <summary>Localizes the raw action string written by the engine into the change log.</summary>
         public static string LogAction(string action)
         {

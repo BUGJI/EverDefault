@@ -42,6 +42,9 @@ namespace EverDefault.Service.Hosting
 
         public event Action<string> Trace;
 
+        /// <summary>Set by the program entry point: temporary console (User) or installed service.</summary>
+        public ServiceHostMode HostMode { get; set; } = ServiceHostMode.User;
+
         public EngineHost(
             IRuleStore rules,
             IBaselineStore baselines,
@@ -302,15 +305,37 @@ namespace EverDefault.Service.Hosting
         public ServiceStatus GetStatus()
         {
             var rules = _ruleCache;
+
+            int observed = 0, blocked = 0, failed = 0;
+            foreach (var entry in _log.Query(int.MaxValue))
+            {
+                if (entry.Utc < _startedUtc)
+                    continue;
+
+                var result = entry.Result ?? string.Empty;
+                if (string.Equals(result, "failed", StringComparison.OrdinalIgnoreCase))
+                    failed++;
+                else if (string.Equals(result, "logged", StringComparison.OrdinalIgnoreCase))
+                    observed++;
+                else if (string.Equals(result, "restored", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(result, "deleted", StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(result, "removed", StringComparison.OrdinalIgnoreCase))
+                    blocked++;
+            }
+
             return new ServiceStatus
             {
                 Running = true,
                 MonitoringEnabled = _settings.Load().MonitoringEnabled,
+                HostMode = HostMode,
                 OsDescription = _os.ToString(),
                 Version = typeof(EngineHost).Assembly.GetName().Version.ToString(),
                 StartedUtc = _startedUtc,
                 ActiveWatchers = _watchers.Count,
-                RuleCount = rules.Count
+                RuleCount = rules.Count,
+                ObservedCount = observed,
+                BlockedCount = blocked,
+                FailedCount = failed
             };
         }
 

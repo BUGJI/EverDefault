@@ -12,7 +12,7 @@
             <TextBlock x:Name="TitleText" FontSize="18" FontWeight="Bold" />
             <TextBlock x:Name="DescText" Style="{StaticResource HintText}" Margin="0,4,0,0" />
             <TextBlock x:Name="EmptyHint" Style="{StaticResource HintText}" Margin="0,4,0,0"
-                       Foreground="#FF2D7DD2" />
+                       Foreground="{DynamicResource AccentBrush}" />
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="0,12,0,0">
@@ -41,7 +41,7 @@
                             <StackPanel Margin="0,3" ToolTip="{Binding Target}">
                                 <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
                                            TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Summary}" Foreground="#FF888888"
+                                <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource TextMutedBrush}"
                                            FontSize="11" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                         </DataTemplate>
@@ -50,7 +50,7 @@
             </DockPanel>
 
             <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
-                          Background="#FFE0E0E0" ResizeBehavior="PreviousAndNext" />
+                          Background="{DynamicResource BorderSoftBrush}" ResizeBehavior="PreviousAndNext" />
 
             <local:RuleEditorPanel Grid.Column="2" x:Name="Editor" />
         </Grid>

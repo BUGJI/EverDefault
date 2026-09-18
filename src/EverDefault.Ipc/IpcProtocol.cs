@@ -52,6 +52,9 @@ namespace EverDefault.Ipc
 
         public bool MonitoringEnabled { get; set; }
 
+        /// <summary>Whether the connected engine runs as a temporary console or an installed service.</summary>
+        public ServiceHostMode HostMode { get; set; }
+
         public string OsDescription { get; set; }
 
         public string Version { get; set; }
@@ -61,6 +64,22 @@ namespace EverDefault.Ipc
         public int ActiveWatchers { get; set; }
 
         public int RuleCount { get; set; }
+
+        /// <summary>Log entries recorded while monitoring was active since this engine started.</summary>
+        public int ObservedCount { get; set; }
+
+        /// <summary>Changes successfully restored/deleted since this engine started.</summary>
+        public int BlockedCount { get; set; }
+
+        /// <summary>Restore/delete attempts that failed since this engine started.</summary>
+        public int FailedCount { get; set; }
+    }
+
+    /// <summary>How the engine that answered the request is being hosted.</summary>
+    public enum ServiceHostMode
+    {
+        User = 0,
+        Service = 1
     }
 
     public sealed class LogQuery

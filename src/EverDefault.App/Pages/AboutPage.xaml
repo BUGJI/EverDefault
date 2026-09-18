@@ -10,7 +10,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
                 <StackPanel>
                     <TextBlock Text="它做什么" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="锁定你选择的东西（默认打开程序、This PC 命名空间、任意注册表值），当其他软件改动时由后台服务自动改回。界面只负责配置，真正监控与还原的是后台服务。" />
                 </StackPanel>
             </Border>
@@ -18,7 +18,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="三种规则类别" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="• 默认应用：锁定某类文件的默认打开程序（如 .pdf）。&#10;• 此电脑：检测并删除“此电脑/桌面”下多余的自定义命名空间项。&#10;• 自定义注册表：监控任意注册表项，按基线或期望值处理（最灵活）。&#10;&#10;编辑器里每个下拉框都有悬浮提示，鼠标停留即可查看含义。" />
                 </StackPanel>
             </Border>
@@ -26,7 +26,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="组件与数据" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="• EverDefault.Service.exe：后台监控引擎（支持 HKLM 与各用户 HKCU）。&#10;• EverDefault.App.exe：本界面与托盘图标，通过命名管道连接服务。&#10;• 数据目录：%ProgramData%\EverDefault（rules.json / baselines.json / changelog.json / settings.json），可手动删除。" />
                 </StackPanel>
             </Border>
@@ -34,7 +34,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="导入 / 导出" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="工具栏的“导出”把当前全部规则保存为 JSON 备份；“导入”是追加，会自动分配新 ID，不覆盖已有规则，可放心重复导入。" />
                 </StackPanel>
             </Border>
@@ -42,7 +42,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="杀毒软件提示" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="本工具会“监控并回写注册表”，容易被杀毒软件误报为可疑。建议将 EverDefault.Service.exe、EverDefault.App.exe 及数据目录加入白名单。" />
                 </StackPanel>
             </Border>
@@ -50,7 +50,7 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
                     <TextBlock Text="已知限制" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
                                Text="• Win11 某些新版本可能使用另一套默认应用哈希算法，若无效请反馈。&#10;• 仅处理已加载的用户配置单元（已注销用户不处理）。&#10;• 服务在需要接管受保护键时会把键的属主改为 SYSTEM。" />
                 </StackPanel>
             </Border>

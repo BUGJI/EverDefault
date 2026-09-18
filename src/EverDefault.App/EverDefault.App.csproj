@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EverDefault.Core\EverDefault.Core.csproj" />
     <ProjectReference Include="..\EverDefault.Ipc\EverDefault.Ipc.csproj" />
+    <Reference Include="System.Net.Http" />
   </ItemGroup>
 
 </Project>

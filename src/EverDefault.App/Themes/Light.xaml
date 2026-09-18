@@ -1,0 +1,29 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <SolidColorBrush x:Key="AccentBrush" Color="#FF2D7DD2" />
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFAFAFA" />
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FFF7F7F7" />
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FFEDEDED" />
+    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFF2F2F2" />
+    <SolidColorBrush x:Key="DisabledBackgroundBrush" Color="#FFEDEDED" />
+    <SolidColorBrush x:Key="BorderSoftBrush" Color="#FFE0E0E0" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#FFD6D6D6" />
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF222222" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF444444" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#FF888888" />
+    <SolidColorBrush x:Key="NavTextBrush" Color="#FF333333" />
+    <SolidColorBrush x:Key="AlternatingRowBrush" Color="#FFF7F7F7" />
+    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#FFC4C4C4" />
+
+    <!-- Override system colours so native templates (TreeView/DataGrid/ScrollBar) follow the theme. -->
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FF222222" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FFF2F2F2" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FF222222" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF888888" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF2D7DD2" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FFD6E4F5" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FF222222" />
+</ResourceDictionary>

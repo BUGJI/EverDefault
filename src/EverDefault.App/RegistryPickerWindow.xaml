@@ -3,6 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="从注册表选择" Height="540" Width="820"
         MinHeight="360" MinWidth="640"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="10">
         <Grid.ColumnDefinitions>
@@ -36,7 +38,7 @@
         <DataGrid Grid.Row="0" Grid.Column="2" x:Name="Values" AutoGenerateColumns="False"
                   IsReadOnly="True" MouseDoubleClick="OnValueDoubleClick" HeadersVisibility="Column"
                   GridLinesVisibility="Horizontal"
-                  AlternatingRowBackground="{StaticResource AlternatingRowBrush}">
+                  AlternatingRowBackground="{DynamicResource AlternatingRowBrush}">
             <DataGrid.Columns>
                 <DataGridTextColumn Header="值名" Binding="{Binding Name}" Width="1.5*"
                                     ElementStyle="{StaticResource TrimmingCell}" />

@@ -66,4 +66,20 @@ namespace EverDefault.Core.Model
         CurrentUser = 0,
         AllUsers = 1
     }
+
+    /// <summary>UI colour theme. System follows the Windows app theme.</summary>
+    public enum ThemeMode
+    {
+        System = 0,
+        Light = 1,
+        Dark = 2
+    }
+
+    /// <summary>How often the app looks for a newer release.</summary>
+    public enum UpdateInterval
+    {
+        Daily = 0,
+        Weekly = 1,
+        Monthly = 2
+    }
 }

@@ -52,11 +52,10 @@ namespace EverDefault.Core.Engine
             if (customA != null && customB != null)
                 return CompareCustom(customA, customB);
 
-            var nameA = a as NameSpaceRule;
-            var nameB = b as NameSpaceRule;
-            if (nameA != null && nameB != null)
-                return ComparePaths(a, b, nameA.PathPatterns, nameB.PathPatterns, "namespace paths overlap");
-
+            // NameSpace rules are intentionally excluded: they only ever delete matching
+            // entries, so overlapping targets still produce the same end state and can
+            // never truly conflict. Comparing only their paths (the common case is several
+            // rules sharing one NameSpace root) caused false positives that blocked them.
             var appA = a as DefaultAppRule;
             var appB = b as DefaultAppRule;
             if (appA != null && appB != null)

@@ -23,7 +23,9 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 - 变更日志，可设置保留天数。
 - 控制台模式，便于免管理员快速体验。
 
-## 快速开始（免管理员，体验用）
+<img width="750" height="500" alt="image" src="https://github.com/user-attachments/assets/b4e769cc-e278-49c4-9781-6edf1da86534" />
+
+## 快速开始（功能验证）
 
 1. 在 `dist\`（或 `packaging\`）中双击 `run-console.cmd`，以控制台模式启动服务，窗口保持打开。
 2. 双击 `EverDefault.App.exe` 打开界面，右上角应显示服务状态。
@@ -31,6 +33,14 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 4. 用 `regedit` 在 `HKEY_CURRENT_USER\Software\EverDefaultTest` 下新建或修改任意值，几秒后界面「变更日志」会出现记录。
 
 也可以直接在界面主页点「临时启动」，无需管理员权限。
+
+## 杀毒软件提示
+
+本工具会「监控并回写注册表」，这类行为容易被杀软误报为可疑。请将以下文件 / 目录加入白名单：
+
+- `EverDefault.Service.exe`
+- `EverDefault.App.exe`
+- `%ProgramData%\EverDefault`
 
 ## 正式安装为开机自启服务
 
@@ -65,14 +75,6 @@ settings.json   设置
 ```
 
 卸载时安装程序会询问是否一并删除该目录。
-
-## 杀毒软件提示
-
-本工具会「监控并回写注册表」，这类行为容易被杀软误报为可疑。请将以下文件 / 目录加入白名单：
-
-- `EverDefault.Service.exe`
-- `EverDefault.App.exe`
-- `%ProgramData%\EverDefault`
 
 ## 已知限制
 

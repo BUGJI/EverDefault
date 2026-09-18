@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EverDefault.Core\EverDefault.Core.csproj" />
+    <ProjectReference Include="..\EverDefault.Ipc\EverDefault.Ipc.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,13 @@
+<Solution>
+  <Folder Name="/poc/">
+    <Project Path="poc/EverDefault.Poc.UserChoice/EverDefault.Poc.UserChoice.csproj" />
+  </Folder>
+  <Folder Name="/src/">
+    <Project Path="src/EverDefault.App/EverDefault.App.csproj" />
+    <Project Path="src/EverDefault.Core/EverDefault.Core.csproj" />
+    <Project Path="src/EverDefault.Ipc/EverDefault.Ipc.csproj" />
+    <Project Path="src/EverDefault.Persistence/EverDefault.Persistence.csproj" />
+    <Project Path="src/EverDefault.Registry/EverDefault.Registry.csproj" />
+    <Project Path="src/EverDefault.Service/EverDefault.Service.csproj" />
+  </Folder>
+</Solution>

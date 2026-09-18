@@ -1,0 +1,20 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+dist/
+
+# Installer output
+installer/Output/
+
+# Visual Studio / Rider
+.vs/
+.idea/
+*.user
+*.suo
+
+# OS junk
+Thumbs.db
+Desktop.ini
+
+# Local runtime data
+wav-backup.json

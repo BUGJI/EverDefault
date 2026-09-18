@@ -1,0 +1,32 @@
+<UserControl x:Class="EverDefault.App.LogPage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0">
+            <TextBlock Text="日志" FontSize="18" FontWeight="Bold" />
+            <TextBlock x:Name="Hint" Style="{StaticResource HintText}" Margin="0,4,0,0"
+                       Text="记录每条规则的触发与处理结果，最新的在最上面。" />
+        </StackPanel>
+
+        <DataGrid Grid.Row="1" x:Name="LogGrid" AutoGenerateColumns="False"
+                  IsReadOnly="True" HeadersVisibility="Column" GridLinesVisibility="Horizontal"
+                  Margin="0,12,0,0"
+                  AlternatingRowBackground="{StaticResource AlternatingRowBrush}">
+            <DataGrid.Columns>
+                <DataGridTextColumn Header="时间" Binding="{Binding Time}" Width="150" />
+                <DataGridTextColumn Header="规则" Binding="{Binding Rule}" Width="1.5*" />
+                <DataGridTextColumn Header="键" Binding="{Binding Key}" Width="3*"
+                                    ElementStyle="{StaticResource TrimmingCell}" />
+                <DataGridTextColumn Header="值" Binding="{Binding Value}" Width="*"
+                                    ElementStyle="{StaticResource TrimmingCell}" />
+                <DataGridTextColumn Header="动作" Binding="{Binding Action}" Width="*" />
+                <DataGridTextColumn Header="结果" Binding="{Binding Result}" Width="*" />
+            </DataGrid.Columns>
+        </DataGrid>
+    </Grid>
+</UserControl>

@@ -1,0 +1,46 @@
+{
+  "Version": 1,
+  "ExportedUtc": "2026-09-18T00:00:00Z",
+  "Rules": [
+    {
+      "Kind": "DefaultApp",
+      "Name": "锁定 .pdf 默认程序(示例)",
+      "Enabled": true,
+      "Mode": "Monitor",
+      "Action": "Restore",
+      "IntervalSeconds": 60,
+      "MinOs": "Win10",
+      "MaxOs": "Win11",
+      "Extensions": [ ".pdf" ],
+      "ProgId": "MSEdgePDF",
+      "ManageOpenWith": true,
+      "ManageFileAssociation": true
+    },
+    {
+      "Kind": "CustomRegistry",
+      "Name": "测试规则(仅记录)",
+      "Enabled": true,
+      "Mode": "Monitor",
+      "Action": "LogOnly",
+      "ValueName": "",
+      "ValueMatchType": "AnyChange",
+      "OnMismatch": "LogOnly",
+      "KeyPatterns": [ "HKEY_CURRENT_USER\\Software\\EverDefaultTest" ]
+    },
+    {
+      "Kind": "NameSpace",
+      "Name": "清理示例命名空间项",
+      "Enabled": false,
+      "Mode": "Schedule",
+      "Action": "Delete",
+      "IntervalSeconds": 300,
+      "NameSpaceMatchType": "Guid",
+      "MatchPattern": "{00000000-0000-0000-0000-000000000000}",
+      "DeleteScope": "WithClsid",
+      "RefreshShell": false,
+      "PathPatterns": [
+        "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Explorer\\MyComputer\\NameSpace"
+      ]
+    }
+  ]
+}

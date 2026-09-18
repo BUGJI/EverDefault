@@ -1,0 +1,37 @@
+<UserControl x:Class="EverDefault.App.HomePage"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+        <StackPanel>
+            <TextBlock Text="主页" FontSize="18" FontWeight="Bold" />
+            <TextBlock Text="EverDefault 会锁定你选择的东西，被其他软件改动后自动改回。" Style="{StaticResource HintText}" Margin="0,4,0,0" />
+
+            <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock x:Name="StatusTitle" FontSize="15" FontWeight="Bold" />
+                    <TextBlock x:Name="StatusDetail" Style="{StaticResource HintText}" Margin="0,6,0,0" />
+
+                    <TextBlock Text="服务控制" Style="{StaticResource SectionHeader}" Margin="0,14,0,6" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="临时启动" Width="100" Margin="0,0,8,0" Click="OnStartTemporary"
+                                ToolTip="在当前会话中运行，无需管理员权限，关闭控制台窗口即停止监控。" />
+                        <Button Content="安装并启动（需管理员）" Width="180" Margin="0,0,8,0" Click="OnInstall"
+                                ToolTip="注册为开机自启的 Windows 服务，需要管理员权限。" />
+                        <Button Content="启动已安装的服务" Width="140" Click="OnStartInstalled" />
+                    </StackPanel>
+                    <TextBlock x:Name="ActionStatus" Style="{StaticResource HintText}" Margin="0,8,0,0" />
+                </StackPanel>
+            </Border>
+
+            <TextBlock x:Name="ConflictText" Foreground="DarkRed" TextWrapping="Wrap" Margin="0,12,0,0" />
+
+            <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
+                <StackPanel>
+                    <TextBlock Text="三步上手" Style="{StaticResource SectionHeader}" />
+                    <TextBlock TextWrapping="Wrap" Foreground="#FF444444"
+                               Text="1. 启动服务：点上面的“临时启动”。第一次使用不需要管理员权限。&#10;&#10;2. 创建规则：到左侧“规则”分类里点『新建』，填好目标后保存；也可以用『测试规则』先跑通流程。&#10;&#10;3. 验证：用 regedit 改动被保护的键，几秒后到“日志”页即可看到记录与处理结果。" />
+                </StackPanel>
+            </Border>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

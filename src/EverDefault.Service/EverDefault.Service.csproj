@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\EverDefault.Core\EverDefault.Core.csproj" />
+    <ProjectReference Include="..\EverDefault.Registry\EverDefault.Registry.csproj" />
+    <ProjectReference Include="..\EverDefault.Persistence\EverDefault.Persistence.csproj" />
+    <ProjectReference Include="..\EverDefault.Ipc\EverDefault.Ipc.csproj" />
+    <Reference Include="System.ServiceProcess" />
+  </ItemGroup>
+
+</Project>

@@ -3,6 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="EverDefault - 注册表守护" Height="720" Width="1120"
         MinHeight="560" MinWidth="900"
+        Icon="Assets/logo.ico"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
         WindowStartupLocation="CenterScreen"

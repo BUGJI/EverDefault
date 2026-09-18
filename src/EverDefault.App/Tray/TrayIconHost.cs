@@ -18,7 +18,7 @@ namespace EverDefault.App.Tray
 
             _icon = new WinForms.NotifyIcon
             {
-                Icon = System.Drawing.SystemIcons.Shield,
+                Icon = LoadAppIcon(),
                 Visible = true,
                 Text = "EverDefault"
             };
@@ -40,6 +40,23 @@ namespace EverDefault.App.Tray
         }
 
         private bool _shutdownRequested;
+
+        private static System.Drawing.Icon LoadAppIcon()
+        {
+            try
+            {
+                var uri = new Uri("pack://application:,,,/EverDefault.App;component/Assets/logo.ico");
+                var resource = Application.GetResourceStream(uri);
+                if (resource != null)
+                    return new System.Drawing.Icon(resource.Stream);
+            }
+            catch (Exception)
+            {
+                // Fall back to a system icon below.
+            }
+
+            return System.Drawing.SystemIcons.Shield;
+        }
 
         private void ShowWindow()
         {

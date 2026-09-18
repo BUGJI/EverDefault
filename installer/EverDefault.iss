@@ -2,7 +2,7 @@
 ; Compile with build-installer.cmd (which builds dist\ first).
 
 #define MyAppName "EverDefault"
-#define MyAppVersion "1.1.0"
+#define MyAppVersion "1.1.1"
 #define MyAppExeName "EverDefault.App.exe"
 #define MyServiceExeName "EverDefault.Service.exe"
 #define MyServiceName "EverDefault"
@@ -26,6 +26,7 @@ PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=6.1sp1
 UninstallDisplayIcon={app}\{#MyAppExeName}
+SetupIconFile=..\src\EverDefault.App\Assets\logo.ico
 
 [Languages]
 Name: "en"; MessagesFile: "compiler:Default.isl"

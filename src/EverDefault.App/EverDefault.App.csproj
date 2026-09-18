@@ -4,7 +4,15 @@
     <OutputType>WinExe</OutputType>
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Remove="Assets\logo.ico" />
+    <None Remove="Assets\logo.png" />
+    <Resource Include="Assets\logo.ico" />
+    <Resource Include="Assets\logo.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\EverDefault.Core\EverDefault.Core.csproj" />

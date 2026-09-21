@@ -26,7 +26,12 @@ namespace EverDefault.App
 
         public void ApplySnapshot(RefreshSnapshot snapshot)
         {
+            var wasRunning = _running;
             _running = snapshot.ServiceRunning;
+
+            // Re-resolve installed state if the service just went away (e.g. uninstalled).
+            if (wasRunning && !_running)
+                _installedKnown = false;
 
             if (_running && snapshot.Status != null)
             {
@@ -58,7 +63,7 @@ namespace EverDefault.App
                     (string.IsNullOrEmpty(snapshot.StatusError) ? string.Empty : "\n" + snapshot.StatusError);
             }
 
-            ModeButton.Content = ModeText();
+            ModeLabel.Text = ModeText();
 
             ConflictText.Text = snapshot.Conflicts != null && snapshot.Conflicts.Count > 0
                 ? "冲突规则（不会执行，请修改）：\n" + string.Join("\n", snapshot.Conflicts)
@@ -71,55 +76,6 @@ namespace EverDefault.App
                 return _hostMode == ServiceHostMode.Service ? "服务模式" : "用户模式";
 
             return _installed ? "服务模式" : "用户模式";
-        }
-
-        private void OnModeClick(object sender, RoutedEventArgs e)
-        {
-            if (_running && _hostMode == ServiceHostMode.Service)
-            {
-                _host.ShowInfo("当前已在服务模式下运行。");
-                return;
-            }
-
-            if (_running && _hostMode == ServiceHostMode.User)
-            {
-                UpgradeToService();
-                return;
-            }
-
-            if (_installed)
-            {
-                if (ServiceControl.StartInstalledElevated())
-                    ActionStatus.Text = "已请求以管理员权限启动已安装的服务，请稍候刷新。";
-                else
-                    ActionStatus.Text = "启动被取消或失败（需要管理员权限）。";
-            }
-            else
-            {
-                ActionStatus.Text = ServiceControl.StartTemporary()
-                    ? "已以用户模式临时启动服务。"
-                    : "未找到 EverDefault.Service.exe（应与本程序在同一目录）。";
-            }
-
-            _host.Refresh();
-        }
-
-        private void UpgradeToService()
-        {
-            if (!_host.Confirm(
-                    "将停止用户模式，安装为 Windows 服务，并以服务模式重启。\n需要管理员权限，确定继续？"))
-                return;
-
-            if (ServiceControl.InstallAsService())
-            {
-                _installedKnown = false;
-                ActionStatus.Text = "已启动安装程序，完成后将自动以服务模式运行。";
-                _host.Refresh();
-            }
-            else
-            {
-                ActionStatus.Text = "未找到 install-service.cmd，或已取消授权。";
-            }
         }
 
         private static Brush Freeze(SolidColorBrush brush)

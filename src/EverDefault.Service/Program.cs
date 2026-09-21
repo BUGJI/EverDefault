@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using EverDefault.Core.Os;
@@ -58,7 +59,7 @@ namespace EverDefault.Service
 
             if (console)
             {
-                RunConsole(host);
+                RunConsole(host, GetParentPid(args));
             }
             else
             {
@@ -66,7 +67,7 @@ namespace EverDefault.Service
             }
         }
 
-        private static void RunConsole(EngineHost host)
+        private static void RunConsole(EngineHost host, int parentPid)
         {
             host.Trace += message => Console.WriteLine("[" + DateTime.Now.ToString("HH:mm:ss") + "] " + message);
             host.Start();
@@ -78,9 +79,48 @@ namespace EverDefault.Service
                 eventArgs.Cancel = true;
                 stop.Set();
             };
+
+            // When spawned by the tray we are hidden and have no console to close: exit
+            // together with the parent so a user-mode engine never lingers as an orphan.
+            if (parentPid > 0)
+            {
+                var watcher = new Thread(() =>
+                {
+                    while (!stop.WaitOne(2000))
+                    {
+                        try
+                        {
+                            Process.GetProcessById(parentPid).Dispose();
+                        }
+                        catch (ArgumentException)
+                        {
+                            stop.Set();
+                            return;
+                        }
+                        catch (Exception)
+                        {
+                            // transient failure; keep watching
+                        }
+                    }
+                });
+                watcher.IsBackground = true;
+                watcher.Start();
+            }
+
             stop.WaitOne();
 
             host.Dispose();
+        }
+
+        private static int GetParentPid(string[] args)
+        {
+            var index = Array.FindIndex(
+                args, a => string.Equals(a, "--parent", StringComparison.OrdinalIgnoreCase));
+            if (index < 0 || index + 1 >= args.Length)
+                return 0;
+
+            int pid;
+            return int.TryParse(args[index + 1], out pid) ? pid : 0;
         }
 
         private static void RunImport(string file)

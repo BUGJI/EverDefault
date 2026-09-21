@@ -18,6 +18,7 @@ namespace EverDefault.Ipc
         public const string CommandGetSettings = "getSettings";
         public const string CommandSaveSettings = "saveSettings";
         public const string CommandSetMonitoring = "setMonitoring";
+        public const string CommandReloadRules = "reloadRules";
     }
 
     public sealed class IpcRequest

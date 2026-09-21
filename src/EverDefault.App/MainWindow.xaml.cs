@@ -29,6 +29,7 @@ namespace EverDefault.App
         private bool _refreshing;
         private bool _serviceRunning;
         private bool _settingsLoaded;
+        private bool _reloadRequested;
         private bool _updateBusy;
 
         public MainWindow()
@@ -196,6 +197,15 @@ namespace EverDefault.App
             {
                 _settingsLoaded = true;
                 LoadAndApplySettings();
+            }
+
+            // The tray usually starts at logon: ask the service to rebuild its per-user scope now
+            // that our profile is loaded (the service itself starts before logon).
+            if (snapshot.ServiceRunning && snapshot.Status != null
+                && snapshot.Status.HostMode == ServiceHostMode.Service && !_reloadRequested)
+            {
+                _reloadRequested = true;
+                _ = SendAsync(IpcProtocol.CommandReloadRules);
             }
         }
 

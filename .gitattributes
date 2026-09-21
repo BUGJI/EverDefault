@@ -1,0 +1,3 @@
+# Batch scripts must keep Windows line endings; cmd.exe mis-parses LF-only .cmd files.
+*.cmd text eol=crlf
+*.bat text eol=crlf

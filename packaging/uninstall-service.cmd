@@ -5,15 +5,36 @@ set SVC=EverDefault
 
 net session >nul 2>&1
 if not "%errorlevel%"=="0" (
-    echo [é”™è¯¯] éœ€è¦ç®¡ç†å‘˜æƒé™ã€‚è¯·å³é”®æ­¤è„šæœ¬ -^> "ä»¥ç®¡ç†å‘˜èº«ä»½è¿è¡Œ"ã€‚
+    echo [´íÎó] ĞèÒª¹ÜÀíÔ±È¨ÏŞ¡£ÇëÓÒ¼ü´Ë½Å±¾ -^> "ÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ"¡£
     pause
     exit /b 1
 )
 
-echo åœæ­¢æœåŠ¡...
+sc query %SVC% >nul 2>&1
+if not "%errorlevel%"=="0" (
+    echo ·şÎñÎ´°²×°£¬ÎŞĞèĞ¶ÔØ¡£
+    pause
+    exit /b 0
+)
+
+echo Í£Ö¹·şÎñ...
 sc stop %SVC% >nul 2>&1
-timeout /t 2 /nobreak >nul
-echo åˆ é™¤æœåŠ¡...
+
+rem µÈ´ı·şÎñÍêÈ«Í£Ö¹£¬±ÜÃâ³öÏÖ¡°±ê¼ÇÎªÉ¾³ı¡±µ¼ÖÂÉ¾³ıÊ§°Ü
+for /l %%i in (1,1,20) do (
+    sc query %SVC% | findstr /i "STOPPED" >nul && goto stopped
+    ping -n 2 127.0.0.1 >nul
+)
+:stopped
+
+echo É¾³ı·şÎñ...
 sc delete %SVC%
-echo å®Œæˆã€‚æ•°æ®ä¿ç•™åœ¨ %ProgramData%\EverDefaultã€‚
+ping -n 3 127.0.0.1 >nul
+
+sc query %SVC% >nul 2>&1
+if "%errorlevel%"=="0" (
+    echo [¾¯¸æ] ·şÎñÈÔÈ»´æÔÚ£¨¿ÉÄÜÒÑ±»±ê¼ÇÎªÉ¾³ı£©¡£ÇëÖØÆôµçÄÔºóÔÙÈ·ÈÏ¡£
+) else (
+    echo Íê³É¡£Êı¾İ±£ÁôÔÚ %ProgramData%\EverDefault¡£
+)
 pause

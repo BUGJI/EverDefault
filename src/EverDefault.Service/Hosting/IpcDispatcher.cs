@@ -65,6 +65,10 @@ namespace EverDefault.Service.Hosting
                         _host.SetMonitoring(bool.Parse(PipeJson.Deserialize<string>(request.Payload)));
                         return IpcResponse.Ok();
 
+                    case IpcProtocol.CommandReloadRules:
+                        _host.Reload();
+                        return IpcResponse.Ok();
+
                     default:
                         return IpcResponse.Fail("unknown command: " + request.Command);
                 }

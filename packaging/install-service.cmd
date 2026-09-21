@@ -5,25 +5,25 @@ set SVC=EverDefault
 
 net session >nul 2>&1
 if not "%errorlevel%"=="0" (
-    echo [é”™è¯¯] éœ€è¦ç®¡ç†å‘˜æƒé™ã€‚è¯·å³é”®æ­¤è„šæœ¬ -^> "ä»¥ç®¡ç†å‘˜èº«ä»½è¿è¡Œ"ã€‚
+    echo [´íÎó] ĞèÒª¹ÜÀíÔ±È¨ÏŞ¡£ÇëÓÒ¼ü´Ë½Å±¾ -^> "ÒÔ¹ÜÀíÔ±Éí·İÔËĞĞ"¡£
     pause
     exit /b 1
 )
 
 sc query %SVC% >nul 2>&1
 if "%errorlevel%"=="0" (
-    echo åœæ­¢å¹¶åˆ é™¤æ—§æœåŠ¡...
+    echo Í£Ö¹²¢É¾³ı¾É·şÎñ...
     sc stop %SVC% >nul 2>&1
-    timeout /t 2 /nobreak >nul
+    ping -n 3 127.0.0.1 >nul
     sc delete %SVC% >nul 2>&1
 )
 
-echo å®‰è£…æœåŠ¡...
+echo °²×°·şÎñ...
 sc create %SVC% binPath= "\"%~dp0EverDefault.Service.exe\"" start= auto DisplayName= "EverDefault Registry Guard"
-sc description %SVC% "ç›‘æ§å¹¶è¿˜åŸé»˜è®¤åº”ç”¨ã€This PC å‘½åç©ºé—´ä¸è‡ªå®šä¹‰æ³¨å†Œè¡¨é¡¹ã€‚"
+sc description %SVC% "¼à¿Ø²¢»¹Ô­Ä¬ÈÏÓ¦ÓÃ¡¢This PC ÃüÃû¿Õ¼äÓë×Ô¶¨Òå×¢²á±íÏî¡£"
 sc failure %SVC% reset= 86400 actions= restart/5000/restart/5000/restart/5000
 sc start %SVC%
 
 echo.
-echo å®Œæˆã€‚å¯è¿è¡Œ EverDefault.App.exe æ‰“å¼€æ‰˜ç›˜ç•Œé¢ã€‚
+echo Íê³É¡£¿ÉÔËĞĞ EverDefault.App.exe ´ò¿ªÍĞÅÌ½çÃæ¡£
 pause

@@ -11,6 +11,10 @@ namespace EverDefault.App
         private readonly IAppHost _host;
         private bool _loaded;
         private bool _loading;
+        private bool _installed;
+        private bool _installedKnown;
+        private bool _serviceRunning;
+        private ServiceHostMode _hostMode;
 
         public SettingsPage(IAppHost host)
         {
@@ -30,12 +34,20 @@ namespace EverDefault.App
 
         public void OnActivated()
         {
+            RefreshModeSection(forceCheck: true);
+
             if (!_loaded)
                 LoadAsync();
         }
 
         public void ApplySnapshot(RefreshSnapshot snapshot)
         {
+            _serviceRunning = snapshot.ServiceRunning;
+            if (_serviceRunning && snapshot.Status != null)
+                _hostMode = snapshot.Status.HostMode;
+
+            UpdateModeText();
+
             if (!snapshot.ServiceRunning)
             {
                 Hint.Text = "后台服务未运行，无法读取或保存设置。请到“主页”启动服务。";
@@ -48,6 +60,129 @@ namespace EverDefault.App
 
             if (!_loaded)
                 LoadAsync();
+        }
+
+        private void RefreshModeSection(bool forceCheck = false)
+        {
+            if (forceCheck || !_installedKnown)
+            {
+                _installed = ServiceControl.IsInstalled();
+                _installedKnown = true;
+            }
+
+            InstallServiceButton.IsEnabled = !_installed;
+            RestartServiceButton.IsEnabled = true;
+            UninstallServiceButton.IsEnabled = _installed;
+            UpdateModeText();
+        }
+
+        private void UpdateModeText()
+        {
+            if (_serviceRunning)
+            {
+                ModeStatusText.Text = _hostMode == ServiceHostMode.Service
+                    ? "当前：服务模式（运行中）"
+                    : "当前：用户模式（运行中）";
+            }
+            else
+            {
+                ModeStatusText.Text = _installed ? "当前：服务模式（未运行）" : "当前：用户模式（未运行）";
+            }
+        }
+
+        private void OnInstallService(object sender, RoutedEventArgs e)
+        {
+            if (!_host.Confirm(
+                    "将安装为 Windows 服务：开机自启，可守护系统级(HKLM)与所有用户。\n需要管理员权限，确定继续？"))
+                return;
+
+            if (ServiceControl.InstallAsService())
+            {
+                _installedKnown = false;
+                ModeActionStatus.Text = "已启动安装程序，完成后将以服务模式运行。";
+                ScheduleModeRefresh();
+                _host.Refresh();
+            }
+            else
+            {
+                ModeActionStatus.Text = "未找到 install-service.cmd，或已取消授权。";
+            }
+        }
+
+        private void OnRestartService(object sender, RoutedEventArgs e)
+        {
+            if (_installed)
+            {
+                ModeActionStatus.Text = ServiceControl.RestartInstalled()
+                    ? "已请求重启服务（需要管理员权限）。"
+                    : "重启被取消或失败。";
+            }
+            else
+            {
+                ModeActionStatus.Text = ServiceControl.RestartTemporary()
+                    ? "已重启用户模式服务。"
+                    : "未找到 EverDefault.Service.exe（应与本程序在同一目录）。";
+                ScheduleReconnect();
+            }
+
+            _host.Refresh();
+        }
+
+        private void ScheduleReconnect()
+        {
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            timer.Tick += (sender, args) =>
+            {
+                timer.Stop();
+                _host.Refresh();
+            };
+            timer.Start();
+        }
+
+        private void OnUninstallService(object sender, RoutedEventArgs e)
+        {
+            if (!_host.Confirm("确定卸载 Windows 服务？\n卸载后将回退为用户模式（随登录运行，仅守护当前用户）。"))
+                return;
+
+            if (ServiceControl.UninstallService())
+            {
+                _installedKnown = false;
+                ModeActionStatus.Text = "已请求卸载服务；完成后将以用户模式运行。";
+                ScheduleModeRefresh();
+                StartTemporaryAfterDelay();
+                _host.Refresh();
+            }
+            else
+            {
+                ModeActionStatus.Text = "未找到 uninstall-service.cmd，或已取消授权。";
+            }
+        }
+
+        /// <summary>Re-checks installed state now and once more shortly after (the script runs async).</summary>
+        private void ScheduleModeRefresh()
+        {
+            RefreshModeSection(forceCheck: true);
+
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(4) };
+            timer.Tick += (sender, args) =>
+            {
+                timer.Stop();
+                RefreshModeSection(forceCheck: true);
+                _host.Refresh();
+            };
+            timer.Start();
+        }
+
+        private void StartTemporaryAfterDelay()
+        {
+            var timer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+            timer.Tick += (sender, args) =>
+            {
+                timer.Stop();
+                if (!_host.ServiceRunning)
+                    ServiceControl.StartTemporary();
+            };
+            timer.Start();
         }
 
         private async void LoadAsync()

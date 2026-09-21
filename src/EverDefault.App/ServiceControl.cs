@@ -56,9 +56,11 @@ namespace EverDefault.App
 
             try
             {
-                _temporary = Process.Start(new ProcessStartInfo(ServiceExePath, "--console")
+                var args = "--console --parent " + Process.GetCurrentProcess().Id;
+                _temporary = Process.Start(new ProcessStartInfo(ServiceExePath, args)
                 {
-                    UseShellExecute = true
+                    UseShellExecute = false,
+                    CreateNoWindow = true
                 });
                 return true;
             }
@@ -85,6 +87,13 @@ namespace EverDefault.App
             }
         }
 
+        /// <summary>Restarts the in-session (user mode) engine.</summary>
+        public static bool RestartTemporary()
+        {
+            StopTemporary();
+            return StartTemporary();
+        }
+
         /// <summary>Stops the temporary engine and runs the elevated install script.</summary>
         public static bool InstallAsService()
         {
@@ -100,6 +109,23 @@ namespace EverDefault.App
         public static bool StartInstalledElevated()
         {
             return RunElevated("sc.exe", "start " + ServiceName);
+        }
+
+        /// <summary>Stops then starts the installed service (elevated).</summary>
+        public static bool RestartInstalled()
+        {
+            return RunElevated("cmd.exe",
+                "/c sc stop " + ServiceName + " >nul & ping -n 4 127.0.0.1 >nul & sc start " + ServiceName);
+        }
+
+        /// <summary>Runs the elevated uninstall script (stops and deletes the service).</summary>
+        public static bool UninstallService()
+        {
+            var script = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "uninstall-service.cmd");
+            if (!File.Exists(script))
+                return false;
+
+            return RunElevated(script, null);
         }
 
         private static bool RunHidden(string fileName, string arguments, out int exitCode)

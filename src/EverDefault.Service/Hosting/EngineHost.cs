@@ -35,8 +35,10 @@ namespace EverDefault.Service.Hosting
         private readonly ModuleContext _context;
 
         private Timer _scheduler;
+        private Timer _userWatch;
         private PipeServer _pipe;
         private List<RuleBase> _ruleCache = new List<RuleBase>();
+        private List<string> _scopeSids = new List<string>();
         private DateTime _startedUtc;
         private bool _disposed;
 
@@ -88,6 +90,12 @@ namespace EverDefault.Service.Hosting
             _pipe = new PipeServer(IpcProtocol.PipeName, new IpcDispatcher(this).Handle);
             _pipe.Log += RaiseTrace;
             _pipe.Start();
+
+            // Only an installed service starts before a user logs on, so only it needs the
+            // fallback re-check. Console (user) mode already runs inside a loaded profile.
+            if (HostMode == ServiceHostMode.Service)
+                _userWatch = new Timer(OnUserWatchTick, null, 60000, 60000);
+
             RaiseTrace("engine started on " + _os);
         }
 
@@ -100,6 +108,9 @@ namespace EverDefault.Service.Hosting
 
                 var settings = _settings.Load();
                 _context.UserScope = new UserScope(settings.TargetUserScope);
+                _scopeSids = _context.UserScope.Sids
+                    .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
                 var rules = _rules.GetAll();
                 _ruleCache = rules.ToList();
 
@@ -141,6 +152,53 @@ namespace EverDefault.Service.Hosting
                 StopWatchers();
                 ConfigureScheduler(false);
             }
+        }
+
+        /// <summary>Re-checks the loaded user hives and reloads when the resolved scope changes.</summary>
+        private void OnUserWatchTick(object state)
+        {
+            try
+            {
+                if (_settings.Load().TargetUserScope != UserScopeMode.AllUsers)
+                    return;
+
+                var current = new UserScope(UserScopeMode.AllUsers).Sids
+                    .OrderBy(s => s, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+
+                bool changed;
+                lock (_sync)
+                {
+                    changed = !_scopeSids.SequenceEqual(current, StringComparer.OrdinalIgnoreCase);
+                }
+
+                if (!changed)
+                    return;
+
+                RaiseTrace("user scope changed to " + current.Count + " user(s); reloading");
+                Reload();
+            }
+            catch (Exception ex)
+            {
+                RaiseTrace("user watch: " + ex.Message);
+            }
+        }
+
+        /// <summary>Called on session logon/unlock: rebuild the per-user scope once the hive loads.</summary>
+        public void OnUserSessionChanged()
+        {
+            ThreadPool.QueueUserWorkItem(_ =>
+            {
+                Thread.Sleep(2500);
+                try
+                {
+                    Reload();
+                }
+                catch (Exception ex)
+                {
+                    RaiseTrace("session reload: " + ex.Message);
+                }
+            });
         }
 
         private void ConfigureScheduler(bool enabled)
@@ -436,6 +494,12 @@ namespace EverDefault.Service.Hosting
             {
                 StopWatchers();
                 ConfigureScheduler(false);
+            }
+
+            if (_userWatch != null)
+            {
+                _userWatch.Dispose();
+                _userWatch = null;
             }
 
             _pipe?.Dispose();

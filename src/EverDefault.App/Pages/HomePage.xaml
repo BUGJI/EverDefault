@@ -9,9 +9,12 @@
             <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
                 <StackPanel>
                     <DockPanel LastChildFill="True">
-                        <Button x:Name="ModeButton" DockPanel.Dock="Right" Margin="12,0,0,0"
-                                Padding="14,6" FontWeight="Bold" Cursor="Hand" Click="OnModeClick"
-                                ToolTip="点击切换运行模式：用户模式会以管理员权限安装为服务并重启。" />
+                        <Border DockPanel.Dock="Right" Margin="12,0,0,0" Padding="12,6"
+                                CornerRadius="6" Background="{DynamicResource ControlBackgroundBrush}"
+                                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
+                                ToolTip="用户模式：随登录启动，仅守护当前用户。服务模式：由 Windows 服务守护。可在“设置”中切换。">
+                            <TextBlock x:Name="ModeLabel" FontWeight="Bold" />
+                        </Border>
                         <TextBlock x:Name="StatusTitle" FontSize="15" FontWeight="Bold"
                                    VerticalAlignment="Center" TextWrapping="Wrap" />
                     </DockPanel>
@@ -43,7 +46,7 @@
                 <StackPanel>
                     <TextBlock Text="三步上手" Style="{StaticResource SectionHeader}" />
                     <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="1. 打开软件即自动连接服务：已安装则启动服务模式，未安装则以用户模式临时运行（无需管理员）。&#10;&#10;2. 创建规则：到左侧“规则”分类里点『新建』，填好目标后保存；也可以用『测试规则』先跑通流程。&#10;&#10;3. 验证：用 regedit 改动被保护的键，几秒后到“日志”页即可看到记录与处理结果。&#10;&#10;想长期后台守护，点上方“用户模式”按钮即可安装为服务模式。" />
+                               Text="1. 打开软件即自动连接服务：已安装服务则进入服务模式，未安装则以用户模式运行（无需管理员）。&#10;&#10;2. 创建规则：到左侧“规则”分类里点『新建』，填好目标后保存；也可以用『测试规则』先跑通流程。&#10;&#10;3. 验证：用 regedit 改动被保护的键，几秒后到“日志”页即可看到记录与处理结果。" />
                 </StackPanel>
             </Border>
         </StackPanel>

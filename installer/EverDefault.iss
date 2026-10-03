@@ -2,7 +2,12 @@
 ; Compile with build-installer.cmd (which builds dist\ first).
 
 #define MyAppName "EverDefault"
-#define MyAppVersion "1.1.2"
+; 版本号的唯一来源是仓库根的 Directory.Build.props（<Version>）：
+; build-installer.cmd 会读取它并以 ISCC /DMyAppVersion=<版本> 传入，
+; 下面这段仅在直接编译本脚本（不经 build-installer.cmd）时作为兜底默认值。
+#ifndef MyAppVersion
+  #define MyAppVersion "1.1.2"
+#endif
 #define MyAppExeName "EverDefault.App.exe"
 #define MyServiceExeName "EverDefault.Service.exe"
 #define MyServiceName "EverDefault"

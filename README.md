@@ -33,7 +33,8 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 
 ## 快速开始
 
-1. 直接双击运行 `EverDefault.App.exe`。程序会自动连接后台服务：已安装服务则进入服务模式；未安装则以用户模式运行（无需管理员权限）。
+1. 到 [Releases](https://github.com/BUGJI/EverDefault/releases/latest) 下载 `EverDefault-Setup-<版本>.exe` 并运行：安装程序会自动创建并启动后台服务（需要管理员权限）。
+   已经自行构建过的话（见下方「构建」），也可以直接双击 `dist\EverDefault.App.exe`——未安装服务时会以用户模式运行，无需管理员权限，也无需安装。
 2. 主页显示当前运行模式，以及本次启动以来的「已记录 / 已拦截 / 拦截失败」统计。
 3. 到左侧「规则」分类点『新建』创建规则，或用『测试规则』先跑通流程。
 4. 用 `regedit` 改动被保护的键，几秒后到「日志」页即可看到记录与处理结果。
@@ -64,7 +65,7 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 
 **方式一：安装包**
 
-运行 `build-installer.cmd` 产出的 `installer\Output\EverDefault-Setup-*.exe`，安装程序会自动创建并启动服务。
+到 [Releases](https://github.com/BUGJI/EverDefault/releases/latest) 下载 `EverDefault-Setup-<版本>.exe`；自行构建则运行 `build-installer.cmd` 产出的 `installer\Output\EverDefault-Setup-*.exe`。安装程序会自动创建并启动服务。
 
 **方式二：脚本**
 
@@ -100,6 +101,10 @@ settings.json   设置
 - 仅处理已加载的用户配置单元（已注销用户不处理）。
 - 服务在需要接管受保护键时，会把键的属主改为 `SYSTEM`（已为用户补回完全控制）。
 - `OpenWithProgids` 项以 `REG_SZ` 空值写入，功能可用，但类型与系统不完全一致。
+
+## 更新日志
+
+各版本的新增与修复见 [CHANGELOG.md](CHANGELOG.md)，每条发布说明的完整原文见 [Releases](https://github.com/BUGJI/EverDefault/releases)。
 
 ---
 

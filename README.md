@@ -1,11 +1,40 @@
 # EverDefault
-<img src="./src/EverDefault.App/Assets/logo.png" align=right width=200>
+
+<img src="./src/EverDefault.App/Assets/logo.png" align="right" width="200" alt="EverDefault logo">
+
+[![Release](https://img.shields.io/github/v/release/BUGJI/EverDefault?label=release&sort=semver)](https://github.com/BUGJI/EverDefault/releases/latest)
+[![Downloads](https://img.shields.io/github/downloads/BUGJI/EverDefault/total)](https://github.com/BUGJI/EverDefault/releases)
+[![License](https://img.shields.io/github/license/BUGJI/EverDefault)](LICENSE)
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6)
+
 EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「锁住」，一旦被其他软件改动，就自动改回来。
+
+> A Windows registry guard that locks in your choices and reverts unwanted changes automatically.
 
 它由两部分组成：
 
 - **EverDefault.Service** —— 后台 Windows 服务，负责监控引擎，支持 HKLM 与各用户的 HKCU。
 - **EverDefault.App** —— 托盘 + WPF 图形界面，通过命名管道（Named Pipe）与服务通信。
+
+## 目录
+
+- [功能](#功能)
+- [快速开始](#快速开始)
+- [系统要求](#系统要求)
+- [设置](#设置)
+- [杀毒软件提示](#杀毒软件提示)
+- [正式安装为开机自启服务](#正式安装为开机自启服务)
+- [规则导入 / 导出](#规则导入--导出)
+- [数据目录](#数据目录)
+- [常见问题](#常见问题)
+- [已知限制](#已知限制)
+- [更新日志](#更新日志)
+- [技术说明](#技术说明)
+  - [项目结构](#项目结构)
+  - [技术栈](#技术栈)
+  - [构建](#构建)
+  - [服务命令行参数](#服务命令行参数)
+- [许可证](#许可证)
 
 ## 功能
 
@@ -29,7 +58,9 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 - 变更日志，可设置保留天数。
 - 控制台模式，便于免管理员快速体验。
 
-<img width="750" height="500" alt="image" src="https://github.com/user-attachments/assets/b4e769cc-e278-49c4-9781-6edf1da86534" />
+![EverDefault 主界面](https://github.com/user-attachments/assets/b4e769cc-e278-49c4-9781-6edf1da86534)
+
+> 主界面：左侧为规则分类，右侧为列表与统计。
 
 ## 快速开始
 
@@ -40,6 +71,13 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 4. 用 `regedit` 改动被保护的键，几秒后到「日志」页即可看到记录与处理结果。
 
 > 也可在 `dist\` 中双击 `run-console.cmd` 手动以控制台模式启动服务。
+
+## 系统要求
+
+- **操作系统**：Windows 10 / 11（Win7 / Win8 仅支持部分功能，见[已知限制](#已知限制)）。
+- **运行时**：.NET Framework 4.8。Win10 1903+ / Win11 通常已自带；更早的系统需先手动安装。
+- **权限**：用户模式无需管理员；安装系统服务（守护 HKLM / 所有用户）需要管理员权限。
+- **磁盘**：程序数据位于 `%ProgramData%\EverDefault`。
 
 ## 设置
 
@@ -69,10 +107,10 @@ EverDefault 是一个 Windows 注册表守护工具：把你选定的东西「�
 
 **方式二：脚本**
 
-1. 右键 `install-service.cmd` → 以管理员身份运行。
+1. 在发行包（或仓库内 `packaging\` 目录）中找到 `install-service.cmd`，右键 → 以管理员身份运行。
 2. 运行 `EverDefault.App.exe`，它会自动连接服务；需要开机自启可在「设置」里开启。
 
-卸载：以管理员身份运行 `uninstall-service.cmd`，或使用安装包自带卸载程序。
+卸载：以管理员身份运行发行包中的 `uninstall-service.cmd`，或使用安装包自带卸载程序。
 
 ## 规则导入 / 导出
 
@@ -94,6 +132,23 @@ settings.json   设置
 ```
 
 卸载时安装程序会询问是否一并删除该目录。
+
+## 常见问题
+
+**改了注册表，日志里却没有记录？**
+确认「设置 → 启用监控」已开启；规则模式为 `Schedule` 时需等一个轮询周期，`Manual` 模式不会自动触发。
+
+**默认应用设置后又被系统改回去了？**
+本工具会持续回写，但某些系统更新会重置 `UserChoice`。若长期无效，通常是 Win11 新版本更换了哈希算法，请到 [Issues](https://github.com/BUGJI/EverDefault/issues) 附上系统版本反馈。
+
+**用户模式下能守护 HKLM 吗？**
+不能。守护系统级(HKLM)或所有用户，需在「设置 → 运行模式」中安装服务模式。
+
+**数据存在哪里？如何备份？**
+见[数据目录](#数据目录)，直接复制 `%ProgramData%\EverDefault` 即可完成备份。
+
+**杀软报警或文件被删除？**
+见[杀毒软件提示](#杀毒软件提示)，将相关文件 / 目录加入白名单。
 
 ## 已知限制
 

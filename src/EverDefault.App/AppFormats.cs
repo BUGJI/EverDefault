@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using EverDefault.Core.Model;
 using Microsoft.Win32;
 
 namespace EverDefault.App
@@ -46,6 +47,23 @@ namespace EverDefault.App
     /// <summary>Reads HKEY_CLASSES_ROOT to discover which formats an application handles.</summary>
     public static class AppFormats
     {
+        /// <summary>Flattens scanned ProgId groups into a normalized ".ext" -&gt; ProgId map.</summary>
+        public static Dictionary<string, string> FlattenByExtension(IEnumerable<FormatGroup> groups)
+        {
+            var map = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var group in groups ?? Enumerable.Empty<FormatGroup>())
+            {
+                foreach (var extension in group.Extensions)
+                {
+                    var key = DefaultAppRule.NormalizeExtension(extension);
+                    if (key != null)
+                        map[key] = group.ProgId;
+                }
+            }
+
+            return map;
+        }
+
         public static List<AppInfo> ListApplications()
         {
             var list = new List<AppInfo>();
@@ -100,8 +118,8 @@ namespace EverDefault.App
         }
 
         /// <summary>
-        /// Returns the extensions the application can open, grouped by ProgId.
-        /// A group maps to one DefaultAppRule because a rule enforces a single ProgId.
+        /// Returns the extensions the application can open, grouped by ProgId. Used to
+        /// resolve the per-extension ProgId when building a grouped default-app rule.
         /// </summary>
         public static List<FormatGroup> ScanFormats(string exeName, string exePath)
         {

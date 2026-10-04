@@ -41,17 +41,26 @@
                     <StackPanel x:Name="AppSection">
                         <TextBlock Text="锁定选定文件类型的默认打开程序。" Style="{StaticResource HintText}" Margin="0,0,0,8" />
                         <DockPanel Margin="0,3">
+                            <TextBlock Text="目标应用" Style="{StaticResource FieldLabel}"
+                                       ToolTip="这组文件类型要统一使用的应用名称（仅作标识，可留空）。" />
+                            <TextBox x:Name="AppNameBox" />
+                        </DockPanel>
+                        <DockPanel Margin="0,3">
                             <TextBlock Text="扩展名(逗号分隔)" Style="{StaticResource FieldLabel}" />
                             <Button DockPanel.Dock="Right" Content="选择..." Width="72" Margin="4,0,0,0" Click="OnPickExtension" />
                             <TextBox x:Name="ExtensionsBox" />
                         </DockPanel>
                         <DockPanel Margin="0,3">
-                            <TextBlock Text="ProgId" Style="{StaticResource FieldLabel}" />
+                            <TextBlock Text="ProgId" Style="{StaticResource FieldLabel}"
+                                       ToolTip="当该应用为所有扩展名只注册一个 ProgId 时填写；若每个扩展名各有一个 ProgId（如 VLC.mp4 / VLC.mkv），请用规则页的“按分组设置…”自动生成。" />
                             <Button DockPanel.Dock="Right" Content="选择..." Width="72" Margin="4,0,0,0" Click="OnPickProgId" />
                             <TextBox x:Name="ProgIdBox" />
                         </DockPanel>
                         <CheckBox x:Name="OpenWithBox" Content="同时维护“打开方式”列表" IsChecked="True" Margin="0,6,0,0" />
                         <CheckBox x:Name="FileAssocBox" Content="同时维护传统文件关联(Classes)" IsChecked="True" Margin="0,4,0,0" />
+                        <TextBlock x:Name="AppMapHint" Style="{StaticResource HintText}" Margin="0,6,0,0"
+                                   Visibility="Collapsed"
+                                   Text="该分组按扩展名分别记录 ProgId（例如 .png → BandiView.png）；此处无需填写单一 ProgId。" />
                     </StackPanel>
 
                     <StackPanel x:Name="NsSection" Visibility="Collapsed">

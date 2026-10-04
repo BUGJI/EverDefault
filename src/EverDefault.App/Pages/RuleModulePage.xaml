@@ -26,12 +26,18 @@
                 <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
                     <Button x:Name="NewButton" Content="新建" Width="64" Margin="0,0,6,6" Click="OnNew" />
                     <Button x:Name="DeleteButton" Content="删除" Width="64" Margin="0,0,6,6" Click="OnDelete" />
+                    <Button x:Name="ChangeAppButton" Content="换应用..." Width="88" Margin="0,0,6,6"
+                            Click="OnChangeApp"
+                            ToolTip="为选中的默认应用规则重新选择一个应用，自动重新解析各扩展名的 ProgId。" />
                     <Button x:Name="TestButton" Content="测试规则" Width="80" Margin="0,0,6,6"
                             Click="OnTestRule"
                             ToolTip="创建一条“仅记录”的示例规则，用于验证监控和日志是否正常。" />
+                    <Button x:Name="GroupApplyButton" Content="按分组设置..." Width="110"
+                            Margin="0,0,6,6" Click="OnGroupApply"
+                            ToolTip="选择常见格式分组与目标应用，自动按扩展名解析 ProgId 并生成一条分组规则。" />
                     <Button x:Name="ImportFormatsButton" Content="导入应用格式..." Width="120"
                             Margin="0,0,6,6" Click="OnImportFormats"
-                            ToolTip="选择一个应用，自动为它支持的所有文件类型创建规则。" />
+                            ToolTip="选择一个应用，扫描它支持的文件类型，合并为一条分组规则。" />
                 </WrapPanel>
 
                 <ListBox x:Name="RulesList" SelectionChanged="OnSelectionChanged"

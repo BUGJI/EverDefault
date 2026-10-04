@@ -1,3 +1,5 @@
+using EverDefault.Serialization;
+
 namespace EverDefault.Ipc
 {
     /// <summary>
@@ -45,24 +47,9 @@ namespace EverDefault.Ipc
             {
                 TypeNameHandling = Newtonsoft.Json.TypeNameHandling.Objects,
                 NullValueHandling = Newtonsoft.Json.NullValueHandling.Ignore,
-                SerializationBinder = new Binder()
+                SerializationBinder = new SafeSerializationBinder(),
+                ContractResolver = new DictionaryTypeNameResolver()
             };
-        }
-
-        private sealed class Binder : Newtonsoft.Json.Serialization.DefaultSerializationBinder
-        {
-            public override System.Type BindToType(string assemblyName, string typeName)
-            {
-                var type = System.Type.GetType(typeName + ", " + assemblyName, false);
-                if (type == null)
-                    return null;
-
-                var ns = type.Namespace ?? string.Empty;
-                if (ns.StartsWith("EverDefault.", System.StringComparison.Ordinal))
-                    return type;
-
-                throw new Newtonsoft.Json.JsonSerializationException("Type not allowed: " + type.FullName);
-            }
         }
     }
 }

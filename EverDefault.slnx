@@ -8,6 +8,7 @@
     <Project Path="src/EverDefault.Ipc/EverDefault.Ipc.csproj" />
     <Project Path="src/EverDefault.Persistence/EverDefault.Persistence.csproj" />
     <Project Path="src/EverDefault.Registry/EverDefault.Registry.csproj" />
+    <Project Path="src/EverDefault.Serialization/EverDefault.Serialization.csproj" />
     <Project Path="src/EverDefault.Service/EverDefault.Service.csproj" />
   </Folder>
 </Solution>

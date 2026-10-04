@@ -42,6 +42,12 @@ namespace EverDefault.Core.Model
 
         public string ProgId { get; set; }
 
+        public string AppName { get; set; }
+
+        public string AppPath { get; set; }
+
+        public Dictionary<string, string> ProgIdMap { get; set; }
+
         public bool? ManageOpenWith { get; set; }
 
         public bool? ManageFileAssociation { get; set; }
@@ -101,6 +107,9 @@ namespace EverDefault.Core.Model
             {
                 dto.Extensions = app.Extensions;
                 dto.ProgId = app.ProgId;
+                dto.AppName = app.AppName;
+                dto.AppPath = app.AppPath;
+                dto.ProgIdMap = app.ProgIdMap != null && app.ProgIdMap.Count > 0 ? app.ProgIdMap : null;
                 dto.ManageOpenWith = app.ManageOpenWith;
                 dto.ManageFileAssociation = app.ManageFileAssociation;
                 return dto;
@@ -156,6 +165,9 @@ namespace EverDefault.Core.Model
                     {
                         Extensions = dto.Extensions ?? new List<string>(),
                         ProgId = dto.ProgId,
+                        AppName = dto.AppName,
+                        AppPath = dto.AppPath,
+                        ProgIdMap = NormalizeMap(dto.ProgIdMap),
                         ManageOpenWith = dto.ManageOpenWith ?? true,
                         ManageFileAssociation = dto.ManageFileAssociation ?? true
                     };
@@ -201,6 +213,22 @@ namespace EverDefault.Core.Model
             rule.CreatedUtc = DateTime.UtcNow;
             rule.UpdatedUtc = DateTime.UtcNow;
             return rule;
+        }
+
+        private static Dictionary<string, string> NormalizeMap(Dictionary<string, string> map)
+        {
+            var result = new Dictionary<string, string>();
+            if (map == null)
+                return result;
+
+            foreach (var pair in map)
+            {
+                var key = DefaultAppRule.NormalizeExtension(pair.Key);
+                if (key != null && !string.IsNullOrWhiteSpace(pair.Value))
+                    result[key] = pair.Value.Trim();
+            }
+
+            return result;
         }
 
         private static TEnum Parse<TEnum>(string value, TEnum fallback) where TEnum : struct

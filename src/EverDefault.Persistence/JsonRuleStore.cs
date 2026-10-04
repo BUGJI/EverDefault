@@ -67,6 +67,15 @@ namespace EverDefault.Persistence
             }
         }
 
+        public void ReplaceAll(IEnumerable<RuleBase> rules)
+        {
+            lock (_sync)
+            {
+                var list = rules == null ? new List<RuleBase>() : rules.ToList();
+                Save(list);
+            }
+        }
+
         private List<RuleBase> Load()
         {
             if (_cache == null)

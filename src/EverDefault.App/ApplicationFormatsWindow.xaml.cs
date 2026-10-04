@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using EverDefault.Core.Model;
@@ -12,13 +10,13 @@ namespace EverDefault.App
     public partial class ApplicationFormatsWindow : Window
     {
         private readonly List<AppInfo> _apps = new List<AppInfo>();
+        private AppInfo _scannedApp;
 
         public ApplicationFormatsWindow()
         {
             InitializeComponent();
 
-            foreach (var app in AppFormats.ListApplications())
-                _apps.Add(app);
+            _apps.AddRange(AppScanner.LoadApplications());
 
             AppBox.ItemsSource = _apps;
             if (_apps.Count > 0)
@@ -30,33 +28,13 @@ namespace EverDefault.App
 
         private void OnBrowse(object sender, RoutedEventArgs e)
         {
-            var dialog = new Microsoft.Win32.OpenFileDialog
-            {
-                Title = "选择应用程序",
-                Filter = "应用程序 (*.exe)|*.exe|所有文件 (*.*)|*.*"
-            };
-
-            if (dialog.ShowDialog(this) != true)
+            var app = AppScanner.Browse(this, _apps);
+            if (app == null)
                 return;
 
-            var existing = _apps.FirstOrDefault(
-                a => string.Equals(a.ExePath, dialog.FileName, StringComparison.OrdinalIgnoreCase));
-
-            if (existing == null)
-            {
-                var fileName = Path.GetFileName(dialog.FileName);
-                existing = new AppInfo
-                {
-                    DisplayName = fileName + "  (手动选择)",
-                    ExeName = fileName,
-                    ExePath = dialog.FileName
-                };
-                _apps.Add(existing);
-                AppBox.Items.Refresh();
-            }
-
-            AppBox.SelectedItem = existing;
-            StatusText.Text = "已选择：" + dialog.FileName + "，点“扫描”。";
+            AppBox.Items.Refresh();
+            AppBox.SelectedItem = app;
+            StatusText.Text = "已选择：" + app.ExePath + "，点“扫描”。";
         }
 
         private async void OnScan(object sender, RoutedEventArgs e)
@@ -71,14 +49,13 @@ namespace EverDefault.App
             ScanButton.IsEnabled = false;
             ImportButton.IsEnabled = false;
             GroupList.ItemsSource = null;
+            _scannedApp = app;
             StatusText.Text = "正在扫描 " + app.ExeName + " ...";
 
             List<FormatGroup> groups;
             try
             {
-                var exeName = app.ExeName;
-                var exePath = app.ExePath;
-                groups = await Task.Run(() => AppFormats.ScanFormats(exeName, exePath));
+                groups = await AppScanner.ScanAsync(app);
             }
             catch (Exception ex)
             {
@@ -101,7 +78,7 @@ namespace EverDefault.App
 
             var extensionCount = groups.Sum(g => g.Extensions.Count);
             StatusText.Text = string.Format(
-                "找到 {0} 个文件类型，按 ProgId 分为 {1} 组。核对后点“导入选中”。",
+                "找到 {0} 个文件类型，按 ProgId 分为 {1} 组。核对后点“合并导入”（所有选中分组将合并为一条规则）。",
                 extensionCount, groups.Count);
             ImportButton.IsEnabled = true;
         }
@@ -126,21 +103,40 @@ namespace EverDefault.App
                 return;
             }
 
-            Rules = new List<DefaultAppRule>();
+            var extensions = new List<string>();
+            var progIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             foreach (var group in selected)
             {
-                Rules.Add(new DefaultAppRule
+                foreach (var raw in group.Extensions)
                 {
-                    Name = RuleNaming.ForDefaultApp(group.Extensions, group.ProgId),
+                    var ext = DefaultAppRule.NormalizeExtension(raw);
+                    if (ext == null)
+                        continue;
+
+                    if (!extensions.Contains(ext))
+                        extensions.Add(ext);
+
+                    progIdMap[ext] = group.ProgId;
+                }
+            }
+
+            var appName = _scannedApp != null ? _scannedApp.DisplayName : null;
+            Rules = new List<DefaultAppRule>
+            {
+                new DefaultAppRule
+                {
+                    Name = RuleNaming.ForDefaultApp(extensions, null, appName),
                     Mode = RuleMode.Monitor,
                     Action = RuleAction.Restore,
                     Enabled = true,
-                    Extensions = new List<string>(group.Extensions),
-                    ProgId = group.ProgId,
+                    AppName = appName,
+                    AppPath = _scannedApp != null ? _scannedApp.ExePath : null,
+                    Extensions = extensions,
+                    ProgIdMap = progIdMap,
                     ManageOpenWith = true,
                     ManageFileAssociation = true
-                });
-            }
+                }
+            };
 
             DialogResult = true;
         }

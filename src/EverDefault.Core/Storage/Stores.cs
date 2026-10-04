@@ -13,6 +13,9 @@ namespace EverDefault.Core.Storage
         void Upsert(RuleBase rule);
 
         void Delete(Guid id);
+
+        /// <summary>Replaces the entire rule set (used by one-time migrations).</summary>
+        void ReplaceAll(IEnumerable<RuleBase> rules);
     }
 
     public interface IBaselineStore

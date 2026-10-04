@@ -70,7 +70,7 @@ namespace EverDefault.Service.Modules
         public void Handle(RuleBase rule, ChangeOrigin origin)
         {
             var app = rule as DefaultAppRule;
-            if (app == null || app.Extensions == null || string.IsNullOrEmpty(app.ProgId))
+            if (app == null || app.Extensions == null || !app.HasDesiredProgId())
                 return;
 
             if (_ctx.Settings != null && !_ctx.Settings.MonitoringEnabled)
@@ -93,24 +93,28 @@ namespace EverDefault.Service.Modules
                     var manager = new UserChoiceManager(hive, sid);
                     foreach (var rawExtension in app.Extensions)
                     {
+                        var progId = app.ResolveProgId(rawExtension);
+                        if (string.IsNullOrEmpty(progId))
+                            continue;
+
                         var ext = UserChoiceManager.NormalizeExtension(rawExtension);
                         var userPrefix = @"HKEY_USERS\" + sid + @"\";
 
-                        EnforceUserChoice(rule, app, manager, sid, ext,
+                        EnforceUserChoice(rule, manager, sid, ext, progId,
                             userPrefix + FileExtsRelative + ext, origin);
 
                         if (app.ManageOpenWith)
-                            EnsureProgIdValue(rule, app.ProgId,
+                            EnsureProgIdValue(rule, progId,
                                 userPrefix + FileExtsRelative + ext + @"\OpenWithProgids",
                                 "打开方式", origin);
 
                         if (app.ManageFileAssociation)
                         {
-                            EnsureProgIdValue(rule, app.ProgId,
+                            EnsureProgIdValue(rule, progId,
                                 userPrefix + ClassesRelative + ext + @"\OpenWithProgids",
                                 "文件关联(OpenWithProgids)", origin);
 
-                            EnsureDefaultValue(rule, app.ProgId,
+                            EnsureDefaultValue(rule, progId,
                                 userPrefix + ClassesRelative + ext,
                                 "文件关联(默认值)", origin);
                         }
@@ -120,8 +124,8 @@ namespace EverDefault.Service.Modules
         }
 
         private void EnforceUserChoice(
-            RuleBase rule, DefaultAppRule app, UserChoiceManager manager,
-            string sid, string extension, string logPath, ChangeOrigin origin)
+            RuleBase rule, UserChoiceManager manager,
+            string sid, string extension, string progId, string logPath, ChangeOrigin origin)
         {
             UserChoiceSnapshot current;
             try
@@ -130,12 +134,12 @@ namespace EverDefault.Service.Modules
             }
             catch (Exception ex)
             {
-                _ctx.WriteLog(rule, logPath, "ProgId", null, app.ProgId, "Restore", "failed", origin,
+                _ctx.WriteLog(rule, logPath, "ProgId", null, progId, "Restore", "failed", origin,
                     "capture failed: " + ex.Message);
                 return;
             }
 
-            if (current.Exists && string.Equals(current.ProgId, app.ProgId, StringComparison.OrdinalIgnoreCase))
+            if (current.Exists && string.Equals(current.ProgId, progId, StringComparison.OrdinalIgnoreCase))
                 return;
 
             try
@@ -144,16 +148,16 @@ namespace EverDefault.Service.Modules
                 var fileTime = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, 0,
                     DateTimeKind.Utc).ToFileTimeUtc();
 
-                var hash = UserChoiceHashAlgorithm.Compute(extension, sid, app.ProgId, fileTime);
-                var result = manager.WriteRaw(extension, app.ProgId, hash, fileTime);
+                var hash = UserChoiceHashAlgorithm.Compute(extension, sid, progId, fileTime);
+                var result = manager.WriteRaw(extension, progId, hash, fileTime);
 
-                _ctx.WriteLog(rule, logPath, "ProgId", current.ProgId, app.ProgId, "Restore",
+                _ctx.WriteLog(rule, logPath, "ProgId", current.ProgId, progId, "Restore",
                     result.Success ? "restored" : "failed", origin,
                     result.Success ? "默认应用已还原" : result.Error);
             }
             catch (Exception ex)
             {
-                _ctx.WriteLog(rule, logPath, "ProgId", current.ProgId, app.ProgId, "Restore", "failed",
+                _ctx.WriteLog(rule, logPath, "ProgId", current.ProgId, progId, "Restore", "failed",
                     origin, ex.Message);
                 _ctx.WriteTrace("default app restore failed: " + ex.Message);
             }

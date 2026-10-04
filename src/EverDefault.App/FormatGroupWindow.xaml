@@ -1,0 +1,75 @@
+<Window x:Class="EverDefault.App.FormatGroupWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="按分组设置默认应用" Height="620" Width="780"
+        MinHeight="480" MinWidth="660"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
+                   Text="选择常见格式分组与目标应用。扫描后，EverDefault 会为组内每个扩展名解析出该应用对应的 ProgId（例如 .png → BandiView.png），并生成一条按分组聚合的规则，之后可在规则页统一修改。" />
+
+        <Grid Grid.Row="1" Margin="0,12,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="230" />
+                <ColumnDefinition Width="10" />
+                <ColumnDefinition Width="*" MinWidth="360" />
+            </Grid.ColumnDefinitions>
+
+            <DockPanel Grid.Column="0">
+                <TextBlock DockPanel.Dock="Top" Text="格式分组（可多选）" Style="{StaticResource SectionHeader}" />
+                <ListBox x:Name="GroupList" SelectionMode="Extended">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,3">
+                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource TextMutedBrush}"
+                                           FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+
+            <DockPanel Grid.Column="2">
+                <StackPanel DockPanel.Dock="Top">
+                    <TextBlock Text="目标应用" Style="{StaticResource SectionHeader}" />
+                    <StackPanel Orientation="Horizontal">
+                        <ComboBox x:Name="AppBox" Width="360" DisplayMemberPath="DisplayName"
+                                  ToolTip="检测到的已注册应用。" />
+                        <Button Content="浏览..." Width="72" Margin="6,0,0,0" Click="OnBrowse"
+                                ToolTip="列表里没有？直接选择应用的 exe。" />
+                        <Button x:Name="ScanButton" Content="扫描" Width="64" Margin="6,0,0,0" Click="OnScan" />
+                    </StackPanel>
+                    <TextBlock x:Name="StatusText" Style="{StaticResource HintText}" Margin="0,8,0,6"
+                               Text="请选择分组与应用后点“扫描”。" />
+                </StackPanel>
+                <ListBox x:Name="PreviewList">
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <StackPanel Margin="0,4">
+                                <TextBlock Text="{Binding Header}" FontWeight="SemiBold" />
+                                <TextBlock Text="{Binding Detail}" Foreground="{DynamicResource TextMutedBrush}"
+                                           FontSize="11" TextWrapping="Wrap" />
+                            </StackPanel>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </DockPanel>
+        </Grid>
+
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="全选分组" Width="90" Margin="4,0" Click="OnSelectAllGroups" />
+            <Button x:Name="ApplyButton" Content="生成规则" Width="100" Margin="12,0,4,0"
+                    IsEnabled="False" IsDefault="True" Click="OnApply" />
+            <Button Content="取消" Width="80" Margin="4,0" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</Window>

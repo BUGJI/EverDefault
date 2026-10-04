@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\EverDefault.Core\EverDefault.Core.csproj" />
+    <ProjectReference Include="..\EverDefault.Serialization\EverDefault.Serialization.csproj" />
     <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
   </ItemGroup>
 

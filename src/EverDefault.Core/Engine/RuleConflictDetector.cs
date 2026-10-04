@@ -60,21 +60,38 @@ namespace EverDefault.Core.Engine
             var appB = b as DefaultAppRule;
             if (appA != null && appB != null)
             {
-                var overlap = appA.Extensions.Intersect(
-                    appB.Extensions, System.StringComparer.OrdinalIgnoreCase).ToList();
-                if (overlap.Count > 0 &&
-                    !string.Equals(appA.ProgId, appB.ProgId, System.StringComparison.OrdinalIgnoreCase))
+                var extensionsA = NormalizeExtensions(appA.Extensions);
+                var extensionsB = NormalizeExtensions(appB.Extensions);
+                var different = extensionsA
+                    .Where(ext => extensionsB.Contains(ext))
+                    .Where(ext => !string.Equals(
+                        appA.ResolveProgId(ext), appB.ResolveProgId(ext), System.StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (different.Count > 0)
                 {
                     return new ConflictReport
                     {
                         First = a,
                         Second = b,
-                        Description = "extensions " + string.Join(",", overlap) + " map to different ProgIds"
+                        Description = "extensions " + string.Join(",", different) + " map to different ProgIds"
                     };
                 }
             }
 
             return null;
+        }
+
+        private static List<string> NormalizeExtensions(IEnumerable<string> extensions)
+        {
+            var result = new List<string>();
+            foreach (var raw in extensions ?? Enumerable.Empty<string>())
+            {
+                var ext = DefaultAppRule.NormalizeExtension(raw);
+                if (ext != null && !result.Contains(ext, System.StringComparer.OrdinalIgnoreCase))
+                    result.Add(ext);
+            }
+
+            return result;
         }
 
         private static ConflictReport CompareCustom(CustomRegistryRule a, CustomRegistryRule b)

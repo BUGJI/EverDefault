@@ -85,6 +85,7 @@ namespace EverDefault.Service.Hosting
         public void Start()
         {
             _startedUtc = DateTime.UtcNow;
+            UpgradeLegacyDefaultAppRules();
             Reload();
 
             _pipe = new PipeServer(IpcProtocol.PipeName, new IpcDispatcher(this).Handle);
@@ -97,6 +98,27 @@ namespace EverDefault.Service.Hosting
                 _userWatch = new Timer(OnUserWatchTick, null, 60000, 60000);
 
             RaiseTrace("engine started on " + _os);
+        }
+
+        /// <summary>
+        /// One-time upgrade: merges legacy per-extension default-app rules (one rule per
+        /// ProgId) into grouped rules that carry a per-extension ProgId map.
+        /// </summary>
+        private void UpgradeLegacyDefaultAppRules()
+        {
+            try
+            {
+                var rules = _rules.GetAll().ToList();
+                if (DefaultAppRuleGrouper.Upgrade(rules))
+                {
+                    _rules.ReplaceAll(rules);
+                    RaiseTrace("merged legacy default-app rules; " + rules.Count + " rule(s) remain");
+                }
+            }
+            catch (Exception ex)
+            {
+                RaiseTrace("default-app rule upgrade failed: " + ex.Message);
+            }
         }
 
         public void Reload()

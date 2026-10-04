@@ -61,7 +61,12 @@ namespace EverDefault.App
 
             var app = rule as DefaultAppRule;
             if (app != null)
-                return string.Join(",", app.Extensions) + " -> " + app.ProgId;
+            {
+                var target = !string.IsNullOrWhiteSpace(app.AppName)
+                    ? app.AppName
+                    : (app.ProgId ?? "(未设置)");
+                return string.Join(",", app.Extensions) + " -> " + target;
+            }
 
             return string.Empty;
         }

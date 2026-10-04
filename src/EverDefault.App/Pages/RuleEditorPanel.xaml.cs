@@ -15,9 +15,13 @@ namespace EverDefault.App
 
         private RuleModule _module = RuleModule.CustomRegistry;
         private Guid? _editingId;
+        private RuleBase _editingBase;
         private bool _nameTouched;
         private bool _suppressName;
         private string _lastSuggestion = string.Empty;
+        private string _appPath;
+        private Dictionary<string, string> _progIdMap =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
         public RuleEditorPanel()
         {
@@ -33,6 +37,7 @@ namespace EverDefault.App
             Clear();
 
             NameBox.TextChanged += OnNameChanged;
+            AppNameBox.TextChanged += OnFieldChanged;
             ExtensionsBox.TextChanged += OnFieldChanged;
             ProgIdBox.TextChanged += OnFieldChanged;
             NsPatternBox.TextChanged += OnFieldChanged;
@@ -73,6 +78,7 @@ namespace EverDefault.App
             _suppressName = false;
 
             _editingId = null;
+            _editingBase = null;
             _nameTouched = false;
             RefreshAutoName();
         }
@@ -85,10 +91,14 @@ namespace EverDefault.App
             EnabledBox.IsChecked = true;
             IntervalBox.Text = "60";
 
+            AppNameBox.Text = string.Empty;
             ExtensionsBox.Text = string.Empty;
             ProgIdBox.Text = string.Empty;
             OpenWithBox.IsChecked = true;
             FileAssocBox.IsChecked = true;
+            _appPath = null;
+            _progIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            UpdateAppMapHint();
 
             NsPathsBox.Text = string.Empty;
             NsMatchTypeBox.SelectedValue = NameSpaceMatchType.Guid;
@@ -109,10 +119,12 @@ namespace EverDefault.App
             _suppressName = true;
             ResetFields();
             _editingId = null;
+            _editingBase = null;
 
             if (rule != null)
             {
                 _editingId = rule.Id;
+                _editingBase = rule;
                 NameBox.Text = rule.Name;
                 ModeBox.SelectedValue = rule.Mode;
                 ActionBox.SelectedValue = rule.Action;
@@ -122,10 +134,16 @@ namespace EverDefault.App
                 var app = rule as DefaultAppRule;
                 if (app != null)
                 {
+                    AppNameBox.Text = app.AppName;
                     ExtensionsBox.Text = string.Join(", ", app.Extensions);
                     ProgIdBox.Text = app.ProgId;
                     OpenWithBox.IsChecked = app.ManageOpenWith;
                     FileAssocBox.IsChecked = app.ManageFileAssociation;
+                    _appPath = app.AppPath;
+                    _progIdMap = app.ProgIdMap != null
+                        ? new Dictionary<string, string>(app.ProgIdMap, StringComparer.OrdinalIgnoreCase)
+                        : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+                    UpdateAppMapHint();
                 }
 
                 var nameSpace = rule as NameSpaceRule;
@@ -183,7 +201,8 @@ namespace EverDefault.App
             switch (_module)
             {
                 case RuleModule.DefaultApp:
-                    return RuleNaming.ForDefaultApp(SplitList(ExtensionsBox.Text, true), Blank(ProgIdBox.Text));
+                    return RuleNaming.ForDefaultApp(
+                        SplitList(ExtensionsBox.Text, true), Blank(ProgIdBox.Text), Blank(AppNameBox.Text));
 
                 case RuleModule.NameSpace:
                     return RuleNaming.ForNameSpace(Blank(NsPatternBox.Text));
@@ -242,6 +261,14 @@ namespace EverDefault.App
                 int interval;
                 rule.IntervalSeconds = int.TryParse(IntervalBox.Text, out interval) && interval > 0 ? interval : 60;
 
+                if (_editingBase != null)
+                {
+                    rule.Priority = _editingBase.Priority;
+                    rule.MinOs = _editingBase.MinOs;
+                    rule.MaxOs = _editingBase.MaxOs;
+                    rule.CreatedUtc = _editingBase.CreatedUtc;
+                }
+
                 if (_editingId.HasValue)
                     rule.Id = _editingId.Value;
 
@@ -256,21 +283,55 @@ namespace EverDefault.App
 
         private DefaultAppRule BuildDefaultApp()
         {
-            var extensions = SplitList(ExtensionsBox.Text, true);
+            var extensions = new List<string>();
+            foreach (var raw in SplitList(ExtensionsBox.Text, true))
+            {
+                var ext = DefaultAppRule.NormalizeExtension(raw);
+                if (ext != null && !extensions.Contains(ext, StringComparer.OrdinalIgnoreCase))
+                    extensions.Add(ext);
+            }
+
             if (extensions.Count == 0)
                 throw new InvalidOperationException("请至少填写一个文件扩展名（例如 .pdf）。");
 
             var progId = Blank(ProgIdBox.Text);
+
+            var progIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ext in extensions)
+            {
+                string mapped;
+                if (_progIdMap != null && _progIdMap.TryGetValue(ext, out mapped) && !string.IsNullOrWhiteSpace(mapped))
+                    progIdMap[ext] = mapped.Trim();
+            }
+
+            if (progId == null && progIdMap.Count == 0)
+                throw new InvalidOperationException("请填写要锁定的默认程序 ProgId（可点“选择...”从注册表选择，或用规则页的“按分组设置…”自动生成）。");
+
             if (progId == null)
-                throw new InvalidOperationException("请填写要锁定的默认程序 ProgId（可点“选择...”从注册表选择）。");
+            {
+                var missing = extensions.Where(ext => !progIdMap.ContainsKey(ext)).ToList();
+                if (missing.Count > 0)
+                    throw new InvalidOperationException(
+                        "以下扩展名没有对应的 ProgId，请用“按分组设置…”重新生成，或为它们填写统一的 ProgId："
+                        + string.Join(", ", missing));
+            }
 
             return new DefaultAppRule
             {
+                AppName = Blank(AppNameBox.Text),
+                AppPath = _appPath,
                 Extensions = extensions,
                 ProgId = progId,
+                ProgIdMap = progIdMap,
                 ManageOpenWith = OpenWithBox.IsChecked == true,
                 ManageFileAssociation = FileAssocBox.IsChecked == true
             };
+        }
+
+        private void UpdateAppMapHint()
+        {
+            if (AppMapHint != null)
+                AppMapHint.Visibility = _progIdMap.Count > 0 ? Shown : Hidden;
         }
 
         private NameSpaceRule BuildNameSpace()

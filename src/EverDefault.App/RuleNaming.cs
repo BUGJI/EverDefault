@@ -11,7 +11,7 @@ namespace EverDefault.App
         {
             var app = rule as DefaultAppRule;
             if (app != null)
-                return ForDefaultApp(app.Extensions, app.ProgId);
+                return ForDefaultApp(app.Extensions, app.ProgId, app.AppName);
 
             var nameSpace = rule as NameSpaceRule;
             if (nameSpace != null)
@@ -26,8 +26,14 @@ namespace EverDefault.App
 
         public static string ForDefaultApp(IList<string> extensions, string progId)
         {
+            return ForDefaultApp(extensions, progId, null);
+        }
+
+        public static string ForDefaultApp(IList<string> extensions, string progId, string appName)
+        {
             var exts = Clean(extensions, true);
             var prog = Trim(progId);
+            var app = Trim(appName);
 
             if (exts.Count == 0)
                 return prog == null ? "默认应用规则" : "锁定默认程序 " + prog;
@@ -35,6 +41,9 @@ namespace EverDefault.App
             var extLabel = exts.Count == 1
                 ? exts[0]
                 : exts[0] + " 等 " + exts.Count + " 项";
+
+            if (app != null)
+                return extLabel + " → " + app;
 
             return prog == null ? extLabel + " 默认程序" : extLabel + " → " + prog;
         }

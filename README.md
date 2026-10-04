@@ -117,6 +117,7 @@ src/
   EverDefault.Core/         模型、枚举、规则/设置定义、存储接口、规则冲突检测
   EverDefault.Registry/     注册表访问、快照、UserChoice 哈希、命名空间扫描、注册表监控
   EverDefault.Persistence/  JSON 存储实现（规则 / 基线 / 日志 / 设置）
+  EverDefault.Serialization/ 共享 JSON 序列化配置（字典类型名、白名单绑定器）
   EverDefault.Ipc/          命名管道协议、分帧、序列化、规则编解码、管道安全
   EverDefault.Service/      监控引擎宿主、调度器、各规则模块处理器
   EverDefault.App/          WPF 托盘界面（主页 / 规则 / 日志 / 设置 / 关于）

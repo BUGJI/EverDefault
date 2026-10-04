@@ -15,7 +15,7 @@
         </Grid.RowDefinitions>
 
         <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
-                   Text="选择一个应用并扫描，EverDefault 会自动找出它为哪些文件类型注册了打开方式，并按 ProgId 分组创建规则（同一分组共用一个 ProgId，因此每组一条规则）。" />
+                   Text="选择一个应用并扫描，EverDefault 会自动找出它为哪些文件类型注册了打开方式，并按 ProgId 分组。勾选需要的分组后会合并为一条规则，每个扩展名各自记录对应的 ProgId。" />
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
             <ComboBox x:Name="AppBox" Width="400" DisplayMemberPath="DisplayName"
@@ -44,7 +44,7 @@
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Content="全选" Width="72" Margin="4,0" Click="OnSelectAll" />
             <Button Content="全不选" Width="72" Margin="4,0" Click="OnSelectNone" />
-            <Button x:Name="ImportButton" Content="导入选中" Width="100" Margin="12,0,4,0"
+            <Button x:Name="ImportButton" Content="合并导入" Width="100" Margin="12,0,4,0"
                     IsEnabled="False" IsDefault="True" Click="OnImport" />
             <Button Content="取消" Width="80" Margin="4,0" IsCancel="True" />
         </StackPanel>

@@ -76,9 +76,40 @@ namespace EverDefault.Core.Engine
                         Description = "extensions " + string.Join(",", different) + " map to different ProgIds"
                     };
                 }
+
+                var protocolsA = NormalizeProtocols(appA.Protocols);
+                var protocolsB = NormalizeProtocols(appB.Protocols);
+                var protocolA = appA.ResolveProtocolProgId();
+                var protocolB = appB.ResolveProtocolProgId();
+                var differentProtocols = protocolsA
+                    .Where(protocol => protocolsB.Contains(protocol))
+                    .Where(protocol => !string.Equals(protocolA, protocolB, System.StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+                if (differentProtocols.Count > 0)
+                {
+                    return new ConflictReport
+                    {
+                        First = a,
+                        Second = b,
+                        Description = "protocols " + string.Join(",", differentProtocols) + " map to different ProgIds"
+                    };
+                }
             }
 
             return null;
+        }
+
+        private static List<string> NormalizeProtocols(IEnumerable<string> protocols)
+        {
+            var result = new List<string>();
+            foreach (var raw in protocols ?? Enumerable.Empty<string>())
+            {
+                var protocol = DefaultAppRule.NormalizeProtocol(raw);
+                if (protocol != null && !result.Contains(protocol, System.StringComparer.OrdinalIgnoreCase))
+                    result.Add(protocol);
+            }
+
+            return result;
         }
 
         private static List<string> NormalizeExtensions(IEnumerable<string> extensions)

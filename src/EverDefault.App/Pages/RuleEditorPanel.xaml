@@ -56,6 +56,17 @@
                             <Button DockPanel.Dock="Right" Content="选择..." Width="72" Margin="4,0,0,0" Click="OnPickProgId" />
                             <TextBox x:Name="ProgIdBox" />
                         </DockPanel>
+                        <DockPanel Margin="0,3">
+                            <TextBlock Text="URL 协议(逗号分隔)" Style="{StaticResource FieldLabel}"
+                                       ToolTip="锁定 URL 协议的默认处理程序，例如 http, https（默认浏览器）或 mailto（邮件客户端）。可只填协议不填扩展名。" />
+                            <TextBox x:Name="ProtocolsBox" />
+                        </DockPanel>
+                        <DockPanel Margin="0,3">
+                            <TextBlock Text="协议 ProgId" Style="{StaticResource FieldLabel}"
+                                       ToolTip="上面 URL 协议要使用的 ProgId，例如 ChromeHTML。留空则忽略协议。" />
+                            <Button DockPanel.Dock="Right" Content="选择..." Width="72" Margin="4,0,0,0" Click="OnPickProgId" />
+                            <TextBox x:Name="ProtocolProgIdBox" />
+                        </DockPanel>
                         <CheckBox x:Name="OpenWithBox" Content="同时维护“打开方式”列表" IsChecked="True" Margin="0,6,0,0" />
                         <CheckBox x:Name="FileAssocBox" Content="同时维护传统文件关联(Classes)" IsChecked="True" Margin="0,4,0,0" />
                         <TextBlock x:Name="AppMapHint" Style="{StaticResource HintText}" Margin="0,6,0,0"
@@ -113,8 +124,13 @@
                         </DockPanel>
                         <DockPanel Margin="0,3">
                             <TextBlock Text="不一致时" Style="{StaticResource FieldLabel}"
-                                       ToolTip="仅针对本规则的“期望数据/基线”。未设置期望值时用上面的“执行动作”。" />
+                                       ToolTip="仅针对本规则的“期望数据/基线”。未设置期望值时用上面的“执行动作”。选择“写策略”可把期望值写到下面的策略键。" />
                             <ComboBox x:Name="OnMismatchBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                        </DockPanel>
+                        <DockPanel Margin="0,3">
+                            <TextBlock Text="策略键" Style="{StaticResource FieldLabel}"
+                                       ToolTip="仅“写策略”动作使用：把期望值写到该键，由系统策略强制。例如 HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer。HKCU 会按目标用户展开。" />
+                            <TextBox x:Name="PolicyKeyBox" />
                         </DockPanel>
                         <TextBlock Text="“*”匹配子键层：Foo\* 指 Foo 的子键；监控 Foo 自身的值写 Foo（不带 \*）。"
                                    Style="{StaticResource HintText}" Margin="0,6,0,0" />

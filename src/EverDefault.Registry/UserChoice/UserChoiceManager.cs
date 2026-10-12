@@ -9,6 +9,16 @@ using Win32Registry = Microsoft.Win32.Registry;
 
 namespace EverDefault.Registry.UserChoice
 {
+    /// <summary>Which UserChoice family a manager operates on.</summary>
+    public enum UserChoiceKind
+    {
+        /// <summary>File extensions, under Explorer\FileExts.</summary>
+        FileExtension = 0,
+
+        /// <summary>URL protocols (http/https/...), under Shell\Associations\UrlAssociations.</summary>
+        UrlProtocol = 1
+    }
+
     /// <summary>
     /// Reads, deletes and restores the per-user UserChoice key used by Windows to
     /// store the default application for a file extension.
@@ -24,11 +34,15 @@ namespace EverDefault.Registry.UserChoice
         private const string FileExtsBase =
             @"Software\Microsoft\Windows\CurrentVersion\Explorer\FileExts";
 
+        private const string UrlAssociationsBase =
+            @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations";
+
         private readonly RegistryKey _hive;
         private readonly string _userSid;
+        private readonly UserChoiceKind _kind;
 
         public UserChoiceManager()
-            : this(Win32Registry.CurrentUser, null)
+            : this(Win32Registry.CurrentUser, null, UserChoiceKind.FileExtension)
         {
         }
 
@@ -37,7 +51,7 @@ namespace EverDefault.Registry.UserChoice
         /// when hosted inside the service.
         /// </summary>
         public UserChoiceManager(RegistryKey hive)
-            : this(hive, null)
+            : this(hive, null, UserChoiceKind.FileExtension)
         {
         }
 
@@ -46,9 +60,41 @@ namespace EverDefault.Registry.UserChoice
         /// service (SYSTEM) has to take ownership of a protected UserChoice key.
         /// </summary>
         public UserChoiceManager(RegistryKey hive, string userSid)
+            : this(hive, userSid, UserChoiceKind.FileExtension)
+        {
+        }
+
+        public UserChoiceManager(RegistryKey hive, string userSid, UserChoiceKind kind)
         {
             _hive = hive ?? throw new ArgumentNullException(nameof(hive));
             _userSid = userSid;
+            _kind = kind;
+        }
+
+        private string BasePath
+        {
+            get { return _kind == UserChoiceKind.UrlProtocol ? UrlAssociationsBase : FileExtsBase; }
+        }
+
+        /// <summary>Normalizes the target name according to the manager's kind.</summary>
+        private string Normalize(string name)
+        {
+            return _kind == UserChoiceKind.UrlProtocol
+                ? NormalizeProtocol(name)
+                : NormalizeExtension(name);
+        }
+
+        /// <summary>Normalizes a URL protocol to lower-case, dot-free form ("http").</summary>
+        public static string NormalizeProtocol(string protocol)
+        {
+            if (string.IsNullOrWhiteSpace(protocol))
+                throw new ArgumentException("protocol is required", nameof(protocol));
+
+            var value = protocol.Trim().TrimEnd(':').Trim().ToLowerInvariant();
+            if (value.Length == 0)
+                throw new ArgumentException("protocol is required", nameof(protocol));
+
+            return value;
         }
 
         public static string NormalizeExtension(string extension)
@@ -65,7 +111,7 @@ namespace EverDefault.Registry.UserChoice
 
         public string GetExtensionKeyPath(string extension)
         {
-            return FileExtsBase + "\\" + NormalizeExtension(extension);
+            return BasePath + "\\" + Normalize(extension);
         }
 
         public string GetUserChoiceKeyPath(string extension)
@@ -75,7 +121,7 @@ namespace EverDefault.Registry.UserChoice
 
         public UserChoiceSnapshot Capture(string extension)
         {
-            extension = NormalizeExtension(extension);
+            extension = Normalize(extension);
 
             using (var key = _hive.OpenSubKey(GetUserChoiceKeyPath(extension), false))
             {
@@ -127,7 +173,7 @@ namespace EverDefault.Registry.UserChoice
         /// </summary>
         public bool Delete(string extension)
         {
-            extension = NormalizeExtension(extension);
+            extension = Normalize(extension);
             var extPath = GetExtensionKeyPath(extension);
 
             using (var extKey = _hive.OpenSubKey(extPath, true))
@@ -157,7 +203,7 @@ namespace EverDefault.Registry.UserChoice
 
         public bool SetLastWriteTime(string extension, long lastWriteTimeUtc)
         {
-            extension = NormalizeExtension(extension);
+            extension = Normalize(extension);
 
             using (var ucKey = _hive.OpenSubKey(
                 GetUserChoiceKeyPath(extension),
@@ -188,7 +234,7 @@ namespace EverDefault.Registry.UserChoice
             if (snapshot.ProgId == null || snapshot.Hash == null)
                 return RestoreResult.Create(false, false, "snapshot is missing ProgId/Hash");
 
-            var extension = NormalizeExtension(snapshot.Extension);
+            var extension = Normalize(snapshot.Extension);
             var extPath = GetExtensionKeyPath(extension);
             var ucPath = extPath + "\\UserChoice";
 
@@ -270,7 +316,7 @@ namespace EverDefault.Registry.UserChoice
             return Restore(
                 new UserChoiceSnapshot
                 {
-                    Extension = NormalizeExtension(extension),
+                    Extension = Normalize(extension),
                     Exists = true,
                     ProgId = progId,
                     Hash = hash,
@@ -283,7 +329,7 @@ namespace EverDefault.Registry.UserChoice
         {
             var result = new List<string>();
 
-            using (var extRoot = _hive.OpenSubKey(FileExtsBase, false))
+            using (var extRoot = _hive.OpenSubKey(BasePath, false))
             {
                 if (extRoot == null)
                     return result;

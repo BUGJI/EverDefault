@@ -11,7 +11,7 @@ namespace EverDefault.App
         {
             var app = rule as DefaultAppRule;
             if (app != null)
-                return ForDefaultApp(app.Extensions, app.ProgId, app.AppName);
+                return ForDefaultApp(app.Extensions, app.ProgId, app.AppName, app.Protocols);
 
             var nameSpace = rule as NameSpaceRule;
             if (nameSpace != null)
@@ -26,26 +26,40 @@ namespace EverDefault.App
 
         public static string ForDefaultApp(IList<string> extensions, string progId)
         {
-            return ForDefaultApp(extensions, progId, null);
+            return ForDefaultApp(extensions, progId, null, null);
         }
 
         public static string ForDefaultApp(IList<string> extensions, string progId, string appName)
         {
+            return ForDefaultApp(extensions, progId, appName, null);
+        }
+
+        public static string ForDefaultApp(
+            IList<string> extensions, string progId, string appName, IList<string> protocols)
+        {
             var exts = Clean(extensions, true);
+            var protos = Clean(protocols, true);
             var prog = Trim(progId);
             var app = Trim(appName);
 
-            if (exts.Count == 0)
+            var label = BuildTargetLabel(exts, protos);
+            if (label == null)
                 return prog == null ? "默认应用规则" : "锁定默认程序 " + prog;
 
-            var extLabel = exts.Count == 1
-                ? exts[0]
-                : exts[0] + " 等 " + exts.Count + " 项";
-
             if (app != null)
-                return extLabel + " → " + app;
+                return label + " → " + app;
 
-            return prog == null ? extLabel + " 默认程序" : extLabel + " → " + prog;
+            return prog == null ? label + " 默认程序" : label + " → " + prog;
+        }
+
+        private static string BuildTargetLabel(List<string> extensions, List<string> protocols)
+        {
+            var all = new List<string>(extensions);
+            all.AddRange(protocols);
+            if (all.Count == 0)
+                return null;
+
+            return all.Count == 1 ? all[0] : all[0] + " 等 " + all.Count + " 项";
         }
 
         public static string ForNameSpace(string matchPattern)

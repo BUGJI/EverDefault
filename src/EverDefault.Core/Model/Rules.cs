@@ -48,6 +48,16 @@ namespace EverDefault.Core.Model
 
         public List<string> Extensions { get; set; } = new List<string>();
 
+        /// <summary>
+        /// URL protocols (e.g. "http", "https", "mailto") whose default handler is locked.
+        /// Stored without a leading dot; the effective choice lives under
+        /// HKCU\...\Shell\Associations\UrlAssociations\&lt;protocol&gt;\UserChoice.
+        /// </summary>
+        public List<string> Protocols { get; set; } = new List<string>();
+
+        /// <summary>ProgId applied to every protocol (e.g. "ChromeHTML" for http/https).</summary>
+        public string ProtocolProgId { get; set; }
+
         /// <summary>Single ProgId applied to every extension (apps that register one shared ProgId).</summary>
         public string ProgId { get; set; }
 
@@ -84,6 +94,18 @@ namespace EverDefault.Core.Model
             }
 
             return false;
+        }
+
+        /// <summary>True when at least one URL protocol can be resolved.</summary>
+        public bool HasDesiredProtocolProgId()
+        {
+            return !string.IsNullOrWhiteSpace(ProtocolProgId) && Protocols != null && Protocols.Count > 0;
+        }
+
+        /// <summary>Returns the trimmed ProgId to enforce for URL protocols, or null if none is configured.</summary>
+        public string ResolveProtocolProgId()
+        {
+            return string.IsNullOrWhiteSpace(ProtocolProgId) ? null : ProtocolProgId.Trim();
         }
 
         /// <summary>Returns the ProgId to enforce for one extension, or null if none is configured.</summary>
@@ -135,6 +157,16 @@ namespace EverDefault.Core.Model
             var ext = extension.Trim().ToLowerInvariant();
             return ext[0] == '.' ? ext : "." + ext;
         }
+
+        /// <summary>Normalizes a URL protocol to lower-case, dot-free form ("http").</summary>
+        public static string NormalizeProtocol(string protocol)
+        {
+            if (string.IsNullOrWhiteSpace(protocol))
+                return null;
+
+            var value = protocol.Trim().TrimEnd(':').Trim().ToLowerInvariant();
+            return value.Length == 0 ? null : value;
+        }
     }
 
     public sealed class NameSpaceRule : RuleBase
@@ -174,5 +206,13 @@ namespace EverDefault.Core.Model
         public string ExpectedData { get; set; }
 
         public RuleAction OnMismatch { get; set; } = RuleAction.Restore;
+
+        /// <summary>
+        /// Target key used by <see cref="RuleAction.WritePolicy"/>. The expected value is
+        /// written here (e.g. HKCU\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer)
+        /// so the policy overrides the monitored setting instead of merely reverting it.
+        /// HKCU paths are expanded to every target user's hive, like <see cref="KeyPatterns"/>.
+        /// </summary>
+        public string PolicyKey { get; set; }
     }
 }

@@ -244,6 +244,8 @@ namespace EverDefault.App
                 AppPath = window.AppPath,
                 Extensions = window.Extensions,
                 ProgIdMap = window.ProgIdMap,
+                Protocols = primary.Protocols,
+                ProtocolProgId = primary.ProtocolProgId,
                 ManageOpenWith = primary.ManageOpenWith,
                 ManageFileAssociation = primary.ManageFileAssociation
             };

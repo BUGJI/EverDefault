@@ -17,6 +17,15 @@
       "ManageFileAssociation": true
     },
     {
+      "Kind": "DefaultApp",
+      "Name": "锁定默认浏览器(示例)",
+      "Enabled": false,
+      "Mode": "Monitor",
+      "Action": "Restore",
+      "Protocols": [ "http", "https" ],
+      "ProtocolProgId": "ChromeHTML"
+    },
+    {
       "Kind": "CustomRegistry",
       "Name": "测试规则(仅记录)",
       "Enabled": true,
@@ -26,6 +35,20 @@
       "ValueMatchType": "AnyChange",
       "OnMismatch": "LogOnly",
       "KeyPatterns": [ "HKEY_CURRENT_USER\\Software\\EverDefaultTest" ]
+    },
+    {
+      "Kind": "CustomRegistry",
+      "Name": "写策略：显示文件扩展名(示例)",
+      "Enabled": false,
+      "Mode": "Monitor",
+      "Action": "Restore",
+      "ValueName": "HideFileExt",
+      "ValueMatchType": "Exact",
+      "ExpectedKind": "DWord",
+      "ExpectedData": "0",
+      "OnMismatch": "WritePolicy",
+      "KeyPatterns": [ "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Explorer\\Advanced" ],
+      "PolicyKey": "HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Policies\\Explorer"
     },
     {
       "Kind": "NameSpace",

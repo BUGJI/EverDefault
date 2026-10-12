@@ -53,7 +53,12 @@ namespace EverDefault.App
         {
             var custom = rule as CustomRegistryRule;
             if (custom != null)
-                return string.Join("; ", custom.KeyPatterns) + " -> " + (custom.ExpectedData ?? "(基线)");
+            {
+                var target = custom.OnMismatch == RuleAction.WritePolicy || custom.Action == RuleAction.WritePolicy
+                    ? "Policy: " + (custom.PolicyKey ?? "(未设置)")
+                    : (custom.ExpectedData ?? "(基线)");
+                return string.Join("; ", custom.KeyPatterns) + " -> " + target;
+            }
 
             var nameSpace = rule as NameSpaceRule;
             if (nameSpace != null)
@@ -64,8 +69,15 @@ namespace EverDefault.App
             {
                 var target = !string.IsNullOrWhiteSpace(app.AppName)
                     ? app.AppName
-                    : (app.ProgId ?? "(未设置)");
-                return string.Join(",", app.Extensions) + " -> " + target;
+                    : (app.ProgId ?? app.ProtocolProgId ?? "(未设置)");
+
+                var parts = new List<string>();
+                if (app.Extensions != null && app.Extensions.Count > 0)
+                    parts.Add(string.Join(",", app.Extensions));
+                if (app.Protocols != null && app.Protocols.Count > 0)
+                    parts.Add(string.Join(",", app.Protocols));
+
+                return (parts.Count > 0 ? string.Join("; ", parts) : "(未设置)") + " -> " + target;
             }
 
             return string.Empty;

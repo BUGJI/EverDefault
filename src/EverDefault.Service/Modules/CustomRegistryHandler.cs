@@ -88,9 +88,64 @@ namespace EverDefault.Service.Modules
                 ValueKind = v.Kind,
                 Data = v.Data,
                 KeyLastWriteTimeUtc = v.KeyLastWriteTimeUtc
-            });
+            }).ToList();
 
             _ctx.Baselines.ReplaceForRule(rule.Id, records);
+
+            // "WritePolicy" is enforced proactively on save as well as on mismatch, so the
+            // policy is asserted even before anything changes the monitored key.
+            if (EffectiveAction(custom) == RuleAction.WritePolicy)
+                SeedPolicy(custom, records);
+        }
+
+        private static RuleAction EffectiveAction(CustomRegistryRule rule)
+        {
+            return rule.OnMismatch != RuleAction.Restore ? rule.OnMismatch : rule.Action;
+        }
+
+        /// <summary>Writes the desired value to the policy key when the rule is saved.</summary>
+        private void SeedPolicy(CustomRegistryRule rule, List<BaselineRecord> records)
+        {
+            if (_ctx.Settings != null && !_ctx.Settings.MonitoringEnabled)
+                return;
+
+            if (string.IsNullOrWhiteSpace(rule.PolicyKey))
+                return;
+
+            string kind;
+            string data;
+
+            if (rule.ExpectedData != null)
+            {
+                data = rule.ExpectedData;
+                kind = !string.IsNullOrWhiteSpace(rule.ExpectedKind) ? rule.ExpectedKind : null;
+            }
+            else
+            {
+                var match = records.FirstOrDefault(r => r.Exists
+                    && string.Equals(r.ValueName ?? string.Empty, rule.ValueName ?? string.Empty,
+                        StringComparison.OrdinalIgnoreCase));
+                if (match == null)
+                    return;
+
+                data = match.Data;
+                kind = match.ValueKind;
+            }
+
+            if (string.IsNullOrWhiteSpace(kind))
+                return;
+
+            var current = new RegistryValueData { KeyPath = rule.PolicyKey, Name = rule.ValueName, Exists = false };
+            var desired = new BaselineRecord
+            {
+                KeyPath = rule.PolicyKey,
+                ValueName = rule.ValueName,
+                Exists = true,
+                ValueKind = kind,
+                Data = data
+            };
+
+            WritePolicyValue(rule, rule, current, desired, ChangeOrigin.Manual, "保存规则时预写策略");
         }
 
         public void Handle(RuleBase rule, ChangeOrigin origin)
@@ -205,6 +260,10 @@ namespace EverDefault.Service.Modules
                         result = "deleted";
                         break;
 
+                    case RuleAction.WritePolicy:
+                        WritePolicyValue(rule, baseRule, current, desired, origin, reason);
+                        return;
+
                     default:
                         if (desired != null && desired.Exists)
                         {
@@ -229,6 +288,60 @@ namespace EverDefault.Service.Modules
                 _ctx.WriteLog(baseRule, current.KeyPath, current.Name, current.Data, null,
                     action.ToString(), "failed", origin, reason + ": " + ex.Message);
                 _ctx.WriteTrace("custom rule failed: " + ex.Message);
+            }
+        }
+
+        /// <summary>
+        /// Writes the desired value to the rule's policy key so Windows enforces it, rather
+        /// than merely reverting the monitored key. HKCU policy keys are expanded per target user.
+        /// </summary>
+        private void WritePolicyValue(
+            CustomRegistryRule rule,
+            RuleBase baseRule,
+            RegistryValueData current,
+            BaselineRecord desired,
+            ChangeOrigin origin,
+            string reason)
+        {
+            var valueName = rule.ValueName ?? string.Empty;
+            var action = RuleAction.WritePolicy.ToString();
+
+            if (string.IsNullOrWhiteSpace(rule.PolicyKey))
+            {
+                _ctx.WriteLog(baseRule, rule.PolicyKey, valueName, current.Data, null,
+                    action, "failed", origin, "未配置策略键(PolicyKey)");
+                return;
+            }
+
+            if (desired == null || !desired.Exists)
+            {
+                _ctx.WriteLog(baseRule, rule.PolicyKey, valueName, current.Data, null,
+                    action, "failed", origin, "写策略需要期望值或基线值");
+                return;
+            }
+
+            var kind = !string.IsNullOrWhiteSpace(desired.ValueKind) ? desired.ValueKind : current.Kind;
+
+            var targets = ResolvePatterns(new[] { rule.PolicyKey })
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (targets.Count == 0)
+                targets.Add(rule.PolicyKey);
+
+            foreach (var target in targets)
+            {
+                try
+                {
+                    _ctx.Registry.WriteValue(target, valueName, kind, desired.Data);
+                    _ctx.WriteLog(baseRule, target, valueName, current.Data, desired.Data,
+                        action, "restored", origin, "策略已写入: " + reason);
+                }
+                catch (Exception ex)
+                {
+                    _ctx.WriteLog(baseRule, target, valueName, current.Data, null,
+                        action, "failed", origin, "策略写入失败: " + ex.Message);
+                    _ctx.WriteTrace("policy write failed: " + ex.Message);
+                }
             }
         }
     }

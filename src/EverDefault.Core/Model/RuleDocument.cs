@@ -48,6 +48,10 @@ namespace EverDefault.Core.Model
 
         public Dictionary<string, string> ProgIdMap { get; set; }
 
+        public List<string> Protocols { get; set; }
+
+        public string ProtocolProgId { get; set; }
+
         public bool? ManageOpenWith { get; set; }
 
         public bool? ManageFileAssociation { get; set; }
@@ -75,6 +79,8 @@ namespace EverDefault.Core.Model
         public string ExpectedData { get; set; }
 
         public string OnMismatch { get; set; }
+
+        public string PolicyKey { get; set; }
     }
 
     public static class RuleDocumentMapper
@@ -110,6 +116,8 @@ namespace EverDefault.Core.Model
                 dto.AppName = app.AppName;
                 dto.AppPath = app.AppPath;
                 dto.ProgIdMap = app.ProgIdMap != null && app.ProgIdMap.Count > 0 ? app.ProgIdMap : null;
+                dto.Protocols = app.Protocols != null && app.Protocols.Count > 0 ? app.Protocols : null;
+                dto.ProtocolProgId = app.ProtocolProgId;
                 dto.ManageOpenWith = app.ManageOpenWith;
                 dto.ManageFileAssociation = app.ManageFileAssociation;
                 return dto;
@@ -135,6 +143,7 @@ namespace EverDefault.Core.Model
                 dto.ExpectedKind = custom.ExpectedKind;
                 dto.ExpectedData = custom.ExpectedData;
                 dto.OnMismatch = custom.OnMismatch.ToString();
+                dto.PolicyKey = custom.PolicyKey;
             }
 
             return dto;
@@ -168,6 +177,8 @@ namespace EverDefault.Core.Model
                         AppName = dto.AppName,
                         AppPath = dto.AppPath,
                         ProgIdMap = NormalizeMap(dto.ProgIdMap),
+                        Protocols = NormalizeProtocols(dto.Protocols),
+                        ProtocolProgId = dto.ProtocolProgId,
                         ManageOpenWith = dto.ManageOpenWith ?? true,
                         ManageFileAssociation = dto.ManageFileAssociation ?? true
                     };
@@ -192,7 +203,8 @@ namespace EverDefault.Core.Model
                         MatchType = Parse(dto.ValueMatchType, ValueMatchType.AnyChange),
                         ExpectedKind = dto.ExpectedKind,
                         ExpectedData = dto.ExpectedData,
-                        OnMismatch = Parse(dto.OnMismatch, RuleAction.Restore)
+                        OnMismatch = Parse(dto.OnMismatch, RuleAction.Restore),
+                        PolicyKey = dto.PolicyKey
                     };
                     break;
 
@@ -226,6 +238,22 @@ namespace EverDefault.Core.Model
                 var key = DefaultAppRule.NormalizeExtension(pair.Key);
                 if (key != null && !string.IsNullOrWhiteSpace(pair.Value))
                     result[key] = pair.Value.Trim();
+            }
+
+            return result;
+        }
+
+        private static List<string> NormalizeProtocols(List<string> protocols)
+        {
+            var result = new List<string>();
+            if (protocols == null)
+                return result;
+
+            foreach (var raw in protocols)
+            {
+                var protocol = DefaultAppRule.NormalizeProtocol(raw);
+                if (protocol != null && !result.Contains(protocol, StringComparer.OrdinalIgnoreCase))
+                    result.Add(protocol);
             }
 
             return result;

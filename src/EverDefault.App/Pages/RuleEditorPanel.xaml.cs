@@ -28,7 +28,6 @@ namespace EverDefault.App
             InitializeComponent();
 
             ModeBox.ItemsSource = Display.Options<RuleMode>(Display.Mode);
-            ActionBox.ItemsSource = Display.Options<RuleAction>(Display.Action);
             NsMatchTypeBox.ItemsSource = Display.Options<NameSpaceMatchType>(Display.NsMatch);
             NsScopeBox.ItemsSource = Display.Options<NameSpaceDeleteScope>(Display.NsScope);
             MatchTypeBox.ItemsSource = Display.Options<ValueMatchType>(Display.ValueMatch);
@@ -39,6 +38,7 @@ namespace EverDefault.App
             NameBox.TextChanged += OnNameChanged;
             AppNameBox.TextChanged += OnFieldChanged;
             ExtensionsBox.TextChanged += OnFieldChanged;
+            ProtocolsBox.TextChanged += OnFieldChanged;
             ProgIdBox.TextChanged += OnFieldChanged;
             NsPatternBox.TextChanged += OnFieldChanged;
             KeyPatternsBox.TextChanged += OnFieldChanged;
@@ -67,8 +67,27 @@ namespace EverDefault.App
             NsSection.Visibility = module == RuleModule.NameSpace ? Shown : Hidden;
             CustomSection.Visibility = module == RuleModule.CustomRegistry ? Shown : Hidden;
 
+            ActionBox.ItemsSource = ActionOptions(module);
+            if (!(ActionBox.SelectedValue is RuleAction))
+                ActionBox.SelectedValue = RuleAction.LogOnly;
+
             _nameTouched = false;
             RefreshAutoName();
+        }
+
+        /// <summary>
+        /// "WritePolicy" is only meaningful for CustomRegistry, so hide it from the other modules'
+        /// action dropdown. The per-rule "不一致时" dropdown stays complete for the custom editor.
+        /// </summary>
+        private static List<EnumOption> ActionOptions(RuleModule module)
+        {
+            var options = Display.Options<RuleAction>(Display.Action);
+            if (module == RuleModule.CustomRegistry)
+                return options;
+
+            return options
+                .Where(o => !(o.Value is RuleAction) || (RuleAction)o.Value != RuleAction.WritePolicy)
+                .ToList();
         }
 
         public void Clear()
@@ -93,7 +112,9 @@ namespace EverDefault.App
 
             AppNameBox.Text = string.Empty;
             ExtensionsBox.Text = string.Empty;
+            ProtocolsBox.Text = string.Empty;
             ProgIdBox.Text = string.Empty;
+            ProtocolProgIdBox.Text = string.Empty;
             OpenWithBox.IsChecked = true;
             FileAssocBox.IsChecked = true;
             _appPath = null;
@@ -112,6 +133,7 @@ namespace EverDefault.App
             ExpectedKindBox.Text = string.Empty;
             ExpectedDataBox.Text = string.Empty;
             OnMismatchBox.SelectedValue = RuleAction.Restore;
+            PolicyKeyBox.Text = string.Empty;
         }
 
         public void LoadRule(RuleBase rule)
@@ -136,7 +158,9 @@ namespace EverDefault.App
                 {
                     AppNameBox.Text = app.AppName;
                     ExtensionsBox.Text = string.Join(", ", app.Extensions);
+                    ProtocolsBox.Text = string.Join(", ", app.Protocols);
                     ProgIdBox.Text = app.ProgId;
+                    ProtocolProgIdBox.Text = app.ProtocolProgId;
                     OpenWithBox.IsChecked = app.ManageOpenWith;
                     FileAssocBox.IsChecked = app.ManageFileAssociation;
                     _appPath = app.AppPath;
@@ -165,6 +189,7 @@ namespace EverDefault.App
                     ExpectedKindBox.Text = custom.ExpectedKind;
                     ExpectedDataBox.Text = custom.ExpectedData;
                     OnMismatchBox.SelectedValue = custom.OnMismatch;
+                    PolicyKeyBox.Text = custom.PolicyKey;
                 }
             }
 
@@ -202,7 +227,10 @@ namespace EverDefault.App
             {
                 case RuleModule.DefaultApp:
                     return RuleNaming.ForDefaultApp(
-                        SplitList(ExtensionsBox.Text, true), Blank(ProgIdBox.Text), Blank(AppNameBox.Text));
+                        SplitList(ExtensionsBox.Text, true),
+                        Blank(ProgIdBox.Text) ?? Blank(ProtocolProgIdBox.Text),
+                        Blank(AppNameBox.Text),
+                        SplitList(ProtocolsBox.Text, true));
 
                 case RuleModule.NameSpace:
                     return RuleNaming.ForNameSpace(Blank(NsPatternBox.Text));
@@ -254,8 +282,8 @@ namespace EverDefault.App
                 }
 
                 rule.Name = Blank(NameBox.Text) ?? ComputeSuggestion();
-                rule.Mode = (RuleMode)ModeBox.SelectedValue;
-                rule.Action = (RuleAction)ActionBox.SelectedValue;
+                rule.Mode = ModeBox.SelectedValue is RuleMode ? (RuleMode)ModeBox.SelectedValue : RuleMode.Monitor;
+                rule.Action = ActionBox.SelectedValue is RuleAction ? (RuleAction)ActionBox.SelectedValue : RuleAction.LogOnly;
                 rule.Enabled = EnabledBox.IsChecked == true;
 
                 int interval;
@@ -291,8 +319,18 @@ namespace EverDefault.App
                     extensions.Add(ext);
             }
 
-            if (extensions.Count == 0)
-                throw new InvalidOperationException("请至少填写一个文件扩展名（例如 .pdf）。");
+            var protocols = new List<string>();
+            foreach (var raw in SplitList(ProtocolsBox.Text, true))
+            {
+                var protocol = DefaultAppRule.NormalizeProtocol(raw);
+                if (protocol != null && !protocols.Contains(protocol, StringComparer.OrdinalIgnoreCase))
+                    protocols.Add(protocol);
+            }
+
+            var protocolProgId = Blank(ProtocolProgIdBox.Text);
+
+            if (extensions.Count == 0 && protocols.Count == 0)
+                throw new InvalidOperationException("请至少填写一个文件扩展名（例如 .pdf）或一个 URL 协议（例如 http）。");
 
             var progId = Blank(ProgIdBox.Text);
 
@@ -304,24 +342,32 @@ namespace EverDefault.App
                     progIdMap[ext] = mapped.Trim();
             }
 
-            if (progId == null && progIdMap.Count == 0)
-                throw new InvalidOperationException("请填写要锁定的默认程序 ProgId（可点“选择...”从注册表选择，或用规则页的“按分组设置…”自动生成）。");
-
-            if (progId == null)
+            if (extensions.Count > 0)
             {
-                var missing = extensions.Where(ext => !progIdMap.ContainsKey(ext)).ToList();
-                if (missing.Count > 0)
-                    throw new InvalidOperationException(
-                        "以下扩展名没有对应的 ProgId，请用“按分组设置…”重新生成，或为它们填写统一的 ProgId："
-                        + string.Join(", ", missing));
+                if (progId == null && progIdMap.Count == 0)
+                    throw new InvalidOperationException("请填写要锁定的默认程序 ProgId（可点“选择...”从注册表选择，或用规则页的“按分组设置…”自动生成）。");
+
+                if (progId == null)
+                {
+                    var missing = extensions.Where(ext => !progIdMap.ContainsKey(ext)).ToList();
+                    if (missing.Count > 0)
+                        throw new InvalidOperationException(
+                            "以下扩展名没有对应的 ProgId，请用“按分组设置…”重新生成，或为它们填写统一的 ProgId："
+                            + string.Join(", ", missing));
+                }
             }
+
+            if (protocols.Count > 0 && protocolProgId == null)
+                throw new InvalidOperationException("已填写 URL 协议，请同时填写“协议 ProgId”（例如 ChromeHTML）。");
 
             return new DefaultAppRule
             {
                 AppName = Blank(AppNameBox.Text),
                 AppPath = _appPath,
                 Extensions = extensions,
+                Protocols = protocols,
                 ProgId = progId,
+                ProtocolProgId = protocolProgId,
                 ProgIdMap = progIdMap,
                 ManageOpenWith = OpenWithBox.IsChecked == true,
                 ManageFileAssociation = FileAssocBox.IsChecked == true
@@ -361,6 +407,16 @@ namespace EverDefault.App
             if (keys.Count == 0)
                 throw new InvalidOperationException("请至少填写一个注册表键（可点“从注册表选择...”）。");
 
+            var onMismatch = (RuleAction)OnMismatchBox.SelectedValue;
+            var action = (RuleAction)ActionBox.SelectedValue;
+            var policyKey = Blank(PolicyKeyBox.Text);
+
+            if ((onMismatch == RuleAction.WritePolicy || action == RuleAction.WritePolicy)
+                && string.IsNullOrWhiteSpace(policyKey))
+            {
+                throw new InvalidOperationException("选择“写策略”时需要填写“策略键”。");
+            }
+
             return new CustomRegistryRule
             {
                 KeyPatterns = keys,
@@ -368,7 +424,8 @@ namespace EverDefault.App
                 MatchType = (ValueMatchType)MatchTypeBox.SelectedValue,
                 ExpectedKind = Blank(ExpectedKindBox.Text),
                 ExpectedData = Blank(ExpectedDataBox.Text),
-                OnMismatch = (RuleAction)OnMismatchBox.SelectedValue
+                OnMismatch = onMismatch,
+                PolicyKey = policyKey
             };
         }
 

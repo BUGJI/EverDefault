@@ -21,9 +21,14 @@ namespace EverDefault.Service.Modules
 
         private const string ClassesRelative = @"Software\Classes\";
 
+        private const string UrlAssocRelative =
+            @"Software\Microsoft\Windows\Shell\Associations\UrlAssociations\";
+
         private const string HkcuFileExts = @"HKEY_CURRENT_USER\" + FileExtsRelative;
 
         private const string HkcuClasses = @"HKEY_CURRENT_USER\" + ClassesRelative;
+
+        private const string HkcuUrlAssoc = @"HKEY_CURRENT_USER\" + UrlAssocRelative;
 
         private readonly ModuleContext _ctx;
 
@@ -40,10 +45,10 @@ namespace EverDefault.Service.Modules
         public IEnumerable<WatchRegistration> GetWatchTargets(RuleBase rule)
         {
             var app = rule as DefaultAppRule;
-            if (app == null || app.Extensions == null || _ctx.UserScope == null)
+            if (app == null || _ctx.UserScope == null)
                 yield break;
 
-            foreach (var extension in app.Extensions)
+            foreach (var extension in app.Extensions ?? new List<string>())
             {
                 if (string.IsNullOrWhiteSpace(extension))
                     continue;
@@ -60,6 +65,16 @@ namespace EverDefault.Service.Modules
                         yield return new WatchRegistration { KeyPath = expanded, Recursive = true };
                 }
             }
+
+            foreach (var rawProtocol in app.Protocols ?? new List<string>())
+            {
+                var protocol = DefaultAppRule.NormalizeProtocol(rawProtocol);
+                if (protocol == null)
+                    continue;
+
+                foreach (var expanded in _ctx.UserScope.ExpandCurrentUser(HkcuUrlAssoc + protocol))
+                    yield return new WatchRegistration { KeyPath = expanded, Recursive = true };
+            }
         }
 
         public void CaptureBaseline(RuleBase rule)
@@ -70,7 +85,7 @@ namespace EverDefault.Service.Modules
         public void Handle(RuleBase rule, ChangeOrigin origin)
         {
             var app = rule as DefaultAppRule;
-            if (app == null || app.Extensions == null || !app.HasDesiredProgId())
+            if (app == null || (!app.HasDesiredProgId() && !app.HasDesiredProtocolProgId()))
                 return;
 
             if (_ctx.Settings != null && !_ctx.Settings.MonitoringEnabled)
@@ -90,36 +105,69 @@ namespace EverDefault.Service.Modules
                         continue;
                     }
 
-                    var manager = new UserChoiceManager(hive, sid);
-                    foreach (var rawExtension in app.Extensions)
-                    {
-                        var progId = app.ResolveProgId(rawExtension);
-                        if (string.IsNullOrEmpty(progId))
-                            continue;
+                    var userPrefix = @"HKEY_USERS\" + sid + @"\";
 
-                        var ext = UserChoiceManager.NormalizeExtension(rawExtension);
-                        var userPrefix = @"HKEY_USERS\" + sid + @"\";
+                    if (app.HasDesiredProgId())
+                        EnforceExtensions(rule, app, hive, sid, userPrefix, origin);
 
-                        EnforceUserChoice(rule, manager, sid, ext, progId,
-                            userPrefix + FileExtsRelative + ext, origin);
-
-                        if (app.ManageOpenWith)
-                            EnsureProgIdValue(rule, progId,
-                                userPrefix + FileExtsRelative + ext + @"\OpenWithProgids",
-                                "打开方式", origin);
-
-                        if (app.ManageFileAssociation)
-                        {
-                            EnsureProgIdValue(rule, progId,
-                                userPrefix + ClassesRelative + ext + @"\OpenWithProgids",
-                                "文件关联(OpenWithProgids)", origin);
-
-                            EnsureDefaultValue(rule, progId,
-                                userPrefix + ClassesRelative + ext,
-                                "文件关联(默认值)", origin);
-                        }
-                    }
+                    if (app.HasDesiredProtocolProgId())
+                        EnforceProtocols(rule, app, hive, sid, userPrefix, origin);
                 }
+            }
+        }
+
+        private void EnforceExtensions(
+            RuleBase rule, DefaultAppRule app, Microsoft.Win32.RegistryKey hive,
+            string sid, string userPrefix, ChangeOrigin origin)
+        {
+            var manager = new UserChoiceManager(hive, sid);
+            foreach (var rawExtension in app.Extensions)
+            {
+                var progId = app.ResolveProgId(rawExtension);
+                if (string.IsNullOrEmpty(progId))
+                    continue;
+
+                var ext = UserChoiceManager.NormalizeExtension(rawExtension);
+
+                EnforceUserChoice(rule, manager, sid, ext, progId,
+                    userPrefix + FileExtsRelative + ext, origin);
+
+                if (app.ManageOpenWith)
+                    EnsureProgIdValue(rule, progId,
+                        userPrefix + FileExtsRelative + ext + @"\OpenWithProgids",
+                        "打开方式", origin);
+
+                if (app.ManageFileAssociation)
+                {
+                    EnsureProgIdValue(rule, progId,
+                        userPrefix + ClassesRelative + ext + @"\OpenWithProgids",
+                        "文件关联(OpenWithProgids)", origin);
+
+                    EnsureDefaultValue(rule, progId,
+                        userPrefix + ClassesRelative + ext,
+                        "文件关联(默认值)", origin);
+                }
+            }
+        }
+
+        private void EnforceProtocols(
+            RuleBase rule, DefaultAppRule app, Microsoft.Win32.RegistryKey hive,
+            string sid, string userPrefix, ChangeOrigin origin)
+        {
+            var progId = app.ResolveProtocolProgId();
+            if (string.IsNullOrEmpty(progId))
+                return;
+
+            var manager = new UserChoiceManager(hive, sid, UserChoiceKind.UrlProtocol);
+
+            foreach (var rawProtocol in app.Protocols)
+            {
+                var protocol = DefaultAppRule.NormalizeProtocol(rawProtocol);
+                if (protocol == null)
+                    continue;
+
+                EnforceUserChoice(rule, manager, sid, protocol, progId,
+                    userPrefix + UrlAssocRelative + protocol, origin);
             }
         }
 

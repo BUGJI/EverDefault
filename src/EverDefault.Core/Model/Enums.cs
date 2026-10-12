@@ -18,7 +18,9 @@ namespace EverDefault.Core.Model
     {
         LogOnly = 0,
         Restore = 1,
-        Delete = 2
+        Delete = 2,
+        /// <summary>Write the expected value to the rule's policy key (CustomRegistry only).</summary>
+        WritePolicy = 3
     }
 
     public enum ChangeOrigin

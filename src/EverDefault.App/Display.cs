@@ -33,6 +33,7 @@ namespace EverDefault.App
             {
                 case RuleAction.Restore: return "还原";
                 case RuleAction.Delete: return "删除";
+                case RuleAction.WritePolicy: return "写策略";
                 default: return "仅记录";
             }
         }
@@ -117,6 +118,7 @@ namespace EverDefault.App
             {
                 case "Restore": return "还原";
                 case "Delete": return "删除";
+                case "WritePolicy": return "写策略";
                 case "LogOnly": return "仅记录";
                 default: return action;
             }

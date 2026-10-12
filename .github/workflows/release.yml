@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and publish installer
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # .slnx 需要 .NET SDK 9.0.200+ 才能被 dotnet build 识别
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '9.0.x'
+
+      # 防止 tag 与打包版本错位：两者必须一致
+      - name: Verify tag matches Directory.Build.props version
+        shell: pwsh
+        run: |
+          $tagVersion = "${{ github.ref_name }}".TrimStart('v')
+          $version = (Select-Xml -Path 'Directory.Build.props' -XPath '/Project/PropertyGroup/Version').Node.InnerText.Trim()
+          if ($tagVersion -ne $version) {
+            throw "Tag version '$tagVersion' does not match Directory.Build.props <Version> '$version'."
+          }
+          Write-Host "Version OK: $version"
+
+      # windows runner 默认不带 Inno Setup 编译器 (ISCC.exe)
+      - name: Install Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      # build-installer.cmd 内部会先执行 build-dist.cmd，并从 Directory.Build.props 读取版本
+      - name: Build installer
+        run: .\build-installer.cmd
+
+      - name: Build portable zip
+        shell: pwsh
+        run: |
+          Compress-Archive -Path 'dist\*' -DestinationPath "EverDefault-${{ github.ref_name }}-portable.zip"
+
+      # 从 CHANGELOG.md 截取当前版本段落作为发布说明，标题格式 "vX.X.X 标题"
+      - name: Extract release notes from CHANGELOG
+        id: notes
+        shell: pwsh
+        run: |
+          $version = "${{ github.ref_name }}".TrimStart('v')
+          $lines = Get-Content -LiteralPath 'CHANGELOG.md' -Encoding utf8
+          $start = -1
+          for ($i = 0; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match "^##\s*\[$([regex]::Escape($version))\]") { $start = $i; break }
+          }
+          if ($start -lt 0) {
+            throw "CHANGELOG.md 中找不到版本 $version 的段落 (## [$version])。"
+          }
+          $end = $lines.Count
+          for ($i = $start + 1; $i -lt $lines.Count; $i++) {
+            if ($lines[$i] -match '^##\s*\[') { $end = $i; break }
+          }
+
+          $heading = $lines[$start]
+          $subject = $heading -replace '^##\s*\[[^\]]+\]\s*-\s*\S+\s*', ''
+          $subject = $subject -replace '^\s*[·:：]\s*', ''
+          $releaseTitle = if ($subject) { "v$version $subject" } else { "v$version" }
+
+          $body = ($lines[($start + 1)..($end - 1)] -join "`n").Trim()
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -LiteralPath $notesFile -Value $body -Encoding utf8
+
+          "title=$releaseTitle" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "notes_file=$notesFile" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          Write-Host "Release title: $releaseTitle"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ steps.notes.outputs.title }}
+          body_path: ${{ steps.notes.outputs.notes_file }}
+          files: |
+            installer/Output/EverDefault-Setup-*.exe
+            EverDefault-*-portable.zip

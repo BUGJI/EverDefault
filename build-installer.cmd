@@ -22,7 +22,7 @@ echo [2/2] Compiling installer...
 rem Single source of truth for the version: Directory.Build.props
 set "VLINE="
 set "APPVER="
-for /f "tokens=*" %%L in (`findstr /c:"<Version>" "Directory.Build.props"`) do set "VLINE=%%L"
+for /f "tokens=*" %%L in ('findstr /c:"<Version>" "Directory.Build.props"') do set "VLINE=%%L"
 if defined VLINE set "APPVER=%VLINE:*<Version>=%"
 if defined APPVER set "APPVER=%APPVER:</Version>=%"
 echo.%APPVER%| findstr /r "^[0-9][0-9]*[.][0-9][0-9]*[.][0-9][0-9]*$" >nul

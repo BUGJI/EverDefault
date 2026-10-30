@@ -50,7 +50,7 @@ namespace EverDefault.App
     /// application, resolve the per-extension ProgId from the registry, and emit one
     /// grouped <see cref="DefaultAppRule"/> per selected group.
     /// </summary>
-    public partial class FormatGroupWindow : Window
+    public partial class FormatGroupWindow : DialogWindow
     {
         private readonly List<AppInfo> _apps = new List<AppInfo>();
         private Dictionary<string, string> _extToProgId =

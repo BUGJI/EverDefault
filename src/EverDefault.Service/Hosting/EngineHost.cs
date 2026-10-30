@@ -8,6 +8,7 @@ using EverDefault.Core.Os;
 using EverDefault.Core.Storage;
 using EverDefault.Ipc;
 using EverDefault.Registry.Access;
+using EverDefault.Registry.NameSpace;
 using EverDefault.Registry.Users;
 using EverDefault.Registry.Watching;
 using EverDefault.Service.Modules;
@@ -350,7 +351,15 @@ namespace EverDefault.Service.Hosting
 
         private void RunRule(RuleBase rule, IRuleModuleHandler handler, ChangeOrigin origin)
         {
-            if (_settings.Load().MonitoringEnabled == false)
+            var settings = _settings.Load();
+            if (!settings.MonitoringEnabled)
+                return;
+
+            var now = DateTime.UtcNow;
+            if (settings.PauseUntilUtc.HasValue && settings.PauseUntilUtc.Value > now)
+                return;
+
+            if (rule != null && rule.PausedUntilUtc.HasValue && rule.PausedUntilUtc.Value > now)
                 return;
 
             try
@@ -403,10 +412,13 @@ namespace EverDefault.Service.Hosting
                     blocked++;
             }
 
+            var settings = _settings.Load();
+
             return new ServiceStatus
             {
                 Running = true,
-                MonitoringEnabled = _settings.Load().MonitoringEnabled,
+                MonitoringEnabled = settings.MonitoringEnabled,
+                PauseUntilUtc = settings.PauseUntilUtc,
                 HostMode = HostMode,
                 OsDescription = _os.ToString(),
                 Version = typeof(EngineHost).Assembly.GetName().Version.ToString(),
@@ -460,6 +472,11 @@ namespace EverDefault.Service.Hosting
             return _log.Query(max, ruleId);
         }
 
+        public void ClearLog()
+        {
+            _log.Clear();
+        }
+
         public AppSettings GetSettings()
         {
             return _settings.Load();
@@ -477,6 +494,68 @@ namespace EverDefault.Service.Hosting
             settings.MonitoringEnabled = enabled;
             _settings.Save(settings);
             Reload();
+        }
+
+        public void PauseAll(int minutes)
+        {
+            var settings = _settings.Load();
+            settings.PauseUntilUtc = DateTime.UtcNow.AddMinutes(Math.Max(1, minutes));
+            _settings.Save(settings);
+        }
+
+        public void ResumeAll()
+        {
+            var settings = _settings.Load();
+            settings.PauseUntilUtc = null;
+            _settings.Save(settings);
+        }
+
+        /// <summary>Lists "This PC" / Desktop namespace entries for the configured user scope.</summary>
+        public List<NameSpaceScanEntry> ScanNameSpaces()
+        {
+            var roots = new List<string>();
+            var scope = _context.UserScope;
+
+            foreach (var root in NameSpaceScanner.DefaultRoots)
+            {
+                if (scope == null)
+                {
+                    roots.Add(root);
+                    continue;
+                }
+
+                foreach (var expanded in scope.ExpandCurrentUser(root))
+                {
+                    if (!roots.Contains(expanded, StringComparer.OrdinalIgnoreCase))
+                        roots.Add(expanded);
+                }
+            }
+
+            var found = NameSpaceScanner.Scan(_registry, roots);
+            return found.Select(entry => new NameSpaceScanEntry
+            {
+                Guid = entry.Guid,
+                DisplayName = entry.DisplayName,
+                TargetPath = entry.TargetPath,
+                NameSpaceKeyPath = entry.NameSpaceKeyPath,
+                ClsidKeyPath = entry.ClsidKeyPath,
+                Location = DescribeLocation(entry.NameSpaceKeyPath)
+            }).ToList();
+        }
+
+        private static string DescribeLocation(string keyPath)
+        {
+            var text = keyPath ?? string.Empty;
+            var where = text.IndexOf(@"\Desktop\NameSpace", StringComparison.OrdinalIgnoreCase) >= 0
+                ? "桌面"
+                : "此电脑";
+
+            if (text.StartsWith(@"HKEY_USERS\", StringComparison.OrdinalIgnoreCase))
+                return where + " · 当前用户";
+            if (text.StartsWith(@"HKEY_CURRENT_USER", StringComparison.OrdinalIgnoreCase))
+                return where + " · 当前用户";
+
+            return where + " · 所有用户";
         }
 
         private void RaiseTrace(string message)

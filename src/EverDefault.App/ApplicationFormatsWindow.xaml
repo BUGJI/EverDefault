@@ -1,12 +1,14 @@
-<Window x:Class="EverDefault.App.ApplicationFormatsWindow"
+<local:DialogWindow x:Class="EverDefault.App.ApplicationFormatsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EverDefault.App"
         Title="导入应用支持的格式" Height="580" Width="640"
         MinHeight="440" MinWidth="520"
         Background="{DynamicResource WindowBackgroundBrush}"
         Foreground="{DynamicResource TextPrimaryBrush}"
-        WindowStartupLocation="CenterOwner">
-    <Grid Margin="14">
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource DialogWindowStyle}">
+    <Grid Margin="16">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
@@ -14,7 +16,7 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0" TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
+        <TextBlock Grid.Row="0" Style="{StaticResource HintText}"
                    Text="选择一个应用并扫描，EverDefault 会自动找出它为哪些文件类型注册了打开方式，并按 ProgId 分组。勾选需要的分组后会合并为一条规则，每个扩展名各自记录对应的 ProgId。" />
 
         <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
@@ -26,15 +28,21 @@
         </StackPanel>
 
         <DockPanel Grid.Row="2" Margin="0,10,0,0">
-            <TextBlock x:Name="StatusText" DockPanel.Dock="Top" Style="{StaticResource HintText}"
-                       Margin="0,0,0,6" Text="请选择应用后点“扫描”。" />
+            <Grid DockPanel.Dock="Top" Margin="0,0,0,6">
+                <TextBlock x:Name="StatusText" Style="{StaticResource HintText}" VerticalAlignment="Center"
+                           Margin="0,0,160,0" Text="请选择应用后点“扫描”。" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Content="全选" Width="64" Margin="0,0,8,0" Click="OnSelectAll" />
+                    <Button Content="全不选" Width="64" Click="OnSelectNone" />
+                </StackPanel>
+            </Grid>
             <ListBox x:Name="GroupList" SelectionMode="Extended">
                 <ListBox.ItemTemplate>
                     <DataTemplate>
                         <StackPanel Margin="0,3">
                             <TextBlock Text="{Binding ProgId}" FontWeight="SemiBold" />
                             <TextBlock Text="{Binding ExtensionsText}" Foreground="{DynamicResource TextMutedBrush}"
-                                       FontSize="11" TextWrapping="Wrap" />
+                                       FontSize="{StaticResource FontSizeCaption}" TextWrapping="Wrap" />
                         </StackPanel>
                     </DataTemplate>
                 </ListBox.ItemTemplate>
@@ -42,11 +50,9 @@
         </DockPanel>
 
         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Content="全选" Width="72" Margin="4,0" Click="OnSelectAll" />
-            <Button Content="全不选" Width="72" Margin="4,0" Click="OnSelectNone" />
-            <Button x:Name="ImportButton" Content="合并导入" Width="100" Margin="12,0,4,0"
-                    IsEnabled="False" IsDefault="True" Click="OnImport" />
-            <Button Content="取消" Width="80" Margin="4,0" IsCancel="True" />
+            <Button x:Name="ImportButton" Content="合并导入" Style="{StaticResource PrimaryButton}"
+                    Width="100" Margin="0,0,8,0" IsEnabled="False" IsDefault="True" Click="OnImport" />
+            <Button Content="取消" Width="80" IsCancel="True" />
         </StackPanel>
     </Grid>
-</Window>
+</local:DialogWindow>

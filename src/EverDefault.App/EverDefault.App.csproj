@@ -5,6 +5,7 @@
     <UseWPF>true</UseWPF>
     <UseWindowsForms>true</UseWindowsForms>
     <ApplicationIcon>Assets\logo.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
   </PropertyGroup>
 
   <ItemGroup>
@@ -17,6 +18,7 @@
   <ItemGroup>
     <ProjectReference Include="..\EverDefault.Core\EverDefault.Core.csproj" />
     <ProjectReference Include="..\EverDefault.Ipc\EverDefault.Ipc.csproj" />
+    <ProjectReference Include="..\EverDefault.Registry\EverDefault.Registry.csproj" />
     <Reference Include="System.Net.Http" />
   </ItemGroup>
 

@@ -4,6 +4,7 @@ using System.IO;
 using System.Linq;
 using EverDefault.Core.Model;
 using Microsoft.Win32;
+using Win32Registry = Microsoft.Win32.Registry;
 
 namespace EverDefault.App
 {
@@ -70,7 +71,7 @@ namespace EverDefault.App
 
             try
             {
-                using (var apps = Registry.ClassesRoot.OpenSubKey("Applications"))
+                using (var apps = Win32Registry.ClassesRoot.OpenSubKey("Applications"))
                 {
                     if (apps != null)
                     {
@@ -128,7 +129,7 @@ namespace EverDefault.App
             var order = new List<string>();
             var exeCache = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
 
-            var root = Registry.ClassesRoot;
+            var root = Win32Registry.ClassesRoot;
             string[] subKeys;
             try
             {
@@ -264,7 +265,7 @@ namespace EverDefault.App
 
             try
             {
-                using (var appPath = Registry.LocalMachine.OpenSubKey(
+                using (var appPath = Win32Registry.LocalMachine.OpenSubKey(
                     @"SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\" + exeName))
                 {
                     var value = appPath == null ? null : appPath.GetValue(null) as string;

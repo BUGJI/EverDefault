@@ -1,29 +1,45 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Accent -->
     <SolidColorBrush x:Key="AccentBrush" Color="#FF2D7DD2" />
-    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFAFAFA" />
-    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FFF7F7F7" />
-    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FFEDEDED" />
-    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFF2F2F2" />
-    <SolidColorBrush x:Key="DisabledBackgroundBrush" Color="#FFEDEDED" />
-    <SolidColorBrush x:Key="BorderSoftBrush" Color="#FFE0E0E0" />
-    <SolidColorBrush x:Key="CardBorderBrush" Color="#FFD6D6D6" />
-    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF222222" />
-    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF444444" />
-    <SolidColorBrush x:Key="TextMutedBrush" Color="#FF888888" />
+    <SolidColorBrush x:Key="AccentHoverBrush" Color="#FF4A90E2" />
+    <SolidColorBrush x:Key="AccentPressedBrush" Color="#FF2368B0" />
+    <SolidColorBrush x:Key="AccentSubtleBrush" Color="#FFE8F1FB" />
+    <SolidColorBrush x:Key="AccentTextBrush" Color="#FF1F5FA8" />
+
+    <!-- Surfaces -->
+    <SolidColorBrush x:Key="WindowBackgroundBrush" Color="#FFF3F3F3" />
+    <SolidColorBrush x:Key="SurfaceBrush" Color="#FFFFFFFF" />
+    <SolidColorBrush x:Key="SurfaceAltBrush" Color="#FFEBEBEB" />
+    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="#FFE2E2E2" />
+    <SolidColorBrush x:Key="ControlBackgroundBrush" Color="#FFFDFDFD" />
+    <SolidColorBrush x:Key="DisabledBackgroundBrush" Color="#FFF0F0F0" />
+    <SolidColorBrush x:Key="BorderSoftBrush" Color="#FFE5E5E5" />
+    <SolidColorBrush x:Key="CardBorderBrush" Color="#FFE1E1E1" />
+
+    <!-- Text -->
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="#FF1A1A1A" />
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="#FF5C5C5C" />
+    <SolidColorBrush x:Key="TextMutedBrush" Color="#FF666666" />
     <SolidColorBrush x:Key="NavTextBrush" Color="#FF333333" />
+
+    <!-- Semantic -->
+    <SolidColorBrush x:Key="SuccessBrush" Color="#FF0F7B0F" />
+    <SolidColorBrush x:Key="SuccessSubtleBrush" Color="#FFE6F4E6" />
+    <SolidColorBrush x:Key="WarningBrush" Color="#FF9D5D00" />
+    <SolidColorBrush x:Key="WarningSubtleBrush" Color="#FFFFF4E5" />
+    <SolidColorBrush x:Key="DangerBrush" Color="#FFC42B1C" />
+    <SolidColorBrush x:Key="DangerSubtleBrush" Color="#FFFDECEA" />
+
     <SolidColorBrush x:Key="AlternatingRowBrush" Color="#FFF7F7F7" />
     <SolidColorBrush x:Key="ScrollThumbBrush" Color="#FFC4C4C4" />
 
     <!-- Override system colours so native templates (TreeView/DataGrid/ScrollBar) follow the theme. -->
     <SolidColorBrush x:Key="{x:Static SystemColors.WindowBrushKey}" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FF222222" />
-    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FFF2F2F2" />
-    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FF222222" />
-    <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF888888" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.WindowTextBrushKey}" Color="#FF1A1A1A" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlBrushKey}" Color="#FFFDFDFD" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.ControlTextBrushKey}" Color="#FF1A1A1A" />
+    <SolidColorBrush x:Key="{x:Static SystemColors.GrayTextBrushKey}" Color="#FF6E6E6E" />
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightBrushKey}" Color="#FF2D7DD2" />
     <SolidColorBrush x:Key="{x:Static SystemColors.HighlightTextBrushKey}" Color="#FFFFFFFF" />
-    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightBrushKey}" Color="#FFD6E4F5" />
-    <SolidColorBrush x:Key="{x:Static SystemColors.InactiveSelectionHighlightTextBrushKey}" Color="#FF222222" />
 </ResourceDictionary>

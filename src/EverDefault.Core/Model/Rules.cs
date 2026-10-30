@@ -28,6 +28,9 @@ namespace EverDefault.Core.Model
 
         public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
+        /// <summary>Temporary per-rule pause ("allow once"); the engine skips the rule until this time.</summary>
+        public DateTime? PausedUntilUtc { get; set; }
+
         public abstract RuleModule Module { get; }
 
         public bool Supports(OsFamily family)

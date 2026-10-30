@@ -1,7 +1,9 @@
 <UserControl x:Class="EverDefault.App.RuleModulePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-             xmlns:local="clr-namespace:EverDefault.App">
+             xmlns:local="clr-namespace:EverDefault.App"
+             Focusable="True"
+             KeyDown="OnPageKeyDown">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
@@ -9,56 +11,148 @@
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0">
-            <TextBlock x:Name="TitleText" FontSize="18" FontWeight="Bold" />
+            <TextBlock x:Name="TitleText" Style="{StaticResource PageTitle}" />
             <TextBlock x:Name="DescText" Style="{StaticResource HintText}" Margin="0,4,0,0" />
             <TextBlock x:Name="EmptyHint" Style="{StaticResource HintText}" Margin="0,4,0,0"
-                       Foreground="{DynamicResource AccentBrush}" />
+                       Foreground="{DynamicResource AccentTextBrush}" />
         </StackPanel>
 
         <Grid Grid.Row="1" Margin="0,12,0,0">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition Width="320" MinWidth="220" />
+                <ColumnDefinition Width="300" MinWidth="220" />
                 <ColumnDefinition Width="6" />
-                <ColumnDefinition Width="*" MinWidth="360" />
+                <ColumnDefinition Width="*" MinWidth="320" />
             </Grid.ColumnDefinitions>
 
-            <DockPanel Grid.Column="0">
-                <WrapPanel DockPanel.Dock="Top" Orientation="Horizontal" Margin="0,0,0,6">
-                    <Button x:Name="NewButton" Content="新建" Width="64" Margin="0,0,6,6" Click="OnNew" />
-                    <Button x:Name="DeleteButton" Content="删除" Width="64" Margin="0,0,6,6" Click="OnDelete" />
-                    <Button x:Name="ChangeAppButton" Content="换应用..." Width="88" Margin="0,0,6,6"
-                            Click="OnChangeApp"
-                            ToolTip="为选中的默认应用规则重新选择一个应用，自动重新解析各扩展名的 ProgId。" />
-                    <Button x:Name="TestButton" Content="测试规则" Width="80" Margin="0,0,6,6"
-                            Click="OnTestRule"
-                            ToolTip="创建一条“仅记录”的示例规则，用于验证监控和日志是否正常。" />
-                    <Button x:Name="GroupApplyButton" Content="按分组设置..." Width="110"
-                            Margin="0,0,6,6" Click="OnGroupApply"
-                            ToolTip="选择常见格式分组与目标应用，自动按扩展名解析 ProgId 并生成一条分组规则。" />
-                    <Button x:Name="ImportFormatsButton" Content="导入应用格式..." Width="120"
-                            Margin="0,0,6,6" Click="OnImportFormats"
-                            ToolTip="选择一个应用，扫描它支持的文件类型，合并为一条分组规则。" />
+            <Grid Grid.Column="0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <WrapPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
+                    <Button x:Name="NewButton" Content="新建" MinWidth="72" Margin="0,0,6,6"
+                            Style="{StaticResource PrimaryButton}" Click="OnNew"
+                            AutomationProperties.Name="新建规则"
+                            ToolTip="在当前分类中新建一条规则。" />
+                    <Button x:Name="MoreButton" Content="更多..." MinWidth="72" Margin="0,0,0,6"
+                            Click="OnMoreClick" AutomationProperties.Name="更多操作"
+                            ToolTip="换应用、按分组设置、导入应用格式或创建测试规则。">
+                        <Button.ContextMenu>
+                            <ContextMenu x:Name="MoreMenu">
+                                <MenuItem x:Name="ChangeAppMenuItem" Header="换应用..."
+                                          Click="OnChangeApp" />
+                                <MenuItem x:Name="GroupApplyMenuItem" Header="按分组设置..."
+                                          Click="OnGroupApply" />
+                                <MenuItem x:Name="ImportFormatsMenuItem" Header="导入应用格式..."
+                                          Click="OnImportFormats" />
+                                <MenuItem x:Name="TestRuleMenuItem" Header="测试规则"
+                                          Click="OnTestRule" />
+                            </ContextMenu>
+                        </Button.ContextMenu>
+                    </Button>
                 </WrapPanel>
 
-                <ListBox x:Name="RulesList" SelectionChanged="OnSelectionChanged"
+                <Grid Grid.Row="1" Margin="0,0,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <Grid>
+                        <TextBox x:Name="SearchBox" Padding="6,4" TextChanged="OnSearchChanged"
+                                 AutomationProperties.Name="搜索规则"
+                                 ToolTip="按名称、目标或摘要搜索当前分类的规则。" />
+                        <TextBlock x:Name="SearchPlaceholder" Text="搜索名称或目标"
+                                   Margin="8,0,0,0" VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextMutedBrush}"
+                                   IsHitTestVisible="False" />
+                    </Grid>
+
+                    <ComboBox x:Name="FilterBox" Grid.Column="1" Width="92" Margin="6,0,0,0"
+                              SelectionChanged="OnFilterChanged"
+                              AutomationProperties.Name="筛选规则">
+                        <ComboBoxItem Content="全部" Tag="all" />
+                        <ComboBoxItem Content="启用" Tag="enabled" />
+                        <ComboBoxItem Content="停用" Tag="disabled" />
+                    </ComboBox>
+                </Grid>
+
+                <ListBox x:Name="RulesList" Grid.Row="2"
+                         SelectionChanged="OnSelectionChanged"
+                         MouseDoubleClick="OnListDoubleClick"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          HorizontalContentAlignment="Stretch">
                     <ListBox.ItemTemplate>
                         <DataTemplate>
-                            <StackPanel Margin="0,3" ToolTip="{Binding Target}">
-                                <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
-                                           TextTrimming="CharacterEllipsis" />
-                                <TextBlock Text="{Binding Summary}" Foreground="{DynamicResource TextMutedBrush}"
-                                           FontSize="11" TextTrimming="CharacterEllipsis" />
-                            </StackPanel>
+                            <Grid x:Name="RowRoot" Margin="0,4" ToolTip="{Binding Target}">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+
+                                <Ellipse x:Name="StatusDot" Width="8" Height="8" Margin="0,0,8,0"
+                                         VerticalAlignment="Center"
+                                         Fill="{DynamicResource SuccessBrush}" />
+
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock Text="{Binding Name}" FontWeight="SemiBold"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock Text="{Binding Summary}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="{StaticResource FontSizeCaption}"
+                                               TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                            </Grid>
+                            <DataTemplate.Triggers>
+                                <DataTrigger Binding="{Binding IsDisabled}" Value="True">
+                                    <Setter TargetName="StatusDot" Property="Fill"
+                                            Value="{DynamicResource TextMutedBrush}" />
+                                    <Setter TargetName="RowRoot" Property="Opacity" Value="0.55" />
+                                </DataTrigger>
+                            </DataTemplate.Triggers>
                         </DataTemplate>
                     </ListBox.ItemTemplate>
                 </ListBox>
-            </DockPanel>
+
+                <Border Grid.Row="3" BorderBrush="{DynamicResource BorderSoftBrush}"
+                        BorderThickness="0,1,0,0" Padding="0,8,0,0" Margin="0,8,0,0">
+                    <DockPanel>
+                        <Button x:Name="DeleteButton" DockPanel.Dock="Right" Content="删除"
+                                MinWidth="64" Style="{StaticResource DangerButton}"
+                                Click="OnDelete" AutomationProperties.Name="删除规则"
+                                ToolTip="删除当前选中的规则。" />
+                        <TextBlock x:Name="CountText" VerticalAlignment="Center"
+                                   Style="{StaticResource HintText}" />
+                    </DockPanel>
+                </Border>
+            </Grid>
 
             <GridSplitter Grid.Column="1" Width="6" HorizontalAlignment="Stretch"
-                          Background="{DynamicResource BorderSoftBrush}" ResizeBehavior="PreviousAndNext" />
+                          Background="Transparent" ResizeBehavior="PreviousAndNext" />
 
-            <local:RuleEditorPanel Grid.Column="2" x:Name="Editor" />
+            <Grid Grid.Column="2">
+                <local:RuleEditorPanel x:Name="Editor" />
+
+                <Border x:Name="OfflinePanel" Style="{StaticResource CardPanel}"
+                        Visibility="Collapsed" Panel.ZIndex="2" Margin="0,10,0,0">
+                    <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center"
+                                MaxWidth="320">
+                        <TextBlock Text="后台保护未运行" Style="{StaticResource SectionHeader}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Text="规则需要后台服务才能读取和保存。请先启动后台保护。"
+                                   Style="{StaticResource HintText}" TextAlignment="Center"
+                                   Margin="0,6,0,14" />
+                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                            <Button Content="启动后台保护" Style="{StaticResource PrimaryButton}"
+                                    Margin="0,0,8,0" Click="OnStartService" />
+                            <Button Content="打开设置" Click="OnOpenSettings" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Grid>
         </Grid>
     </Grid>
 </UserControl>

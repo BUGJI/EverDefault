@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using EverDefault.Core.Model;
 using EverDefault.Ipc;
 
@@ -13,33 +15,45 @@ namespace EverDefault.App
     {
         private readonly IAppHost _host;
         private readonly RuleModule _module;
+        private readonly ObservableCollection<RuleRow> _viewRows = new ObservableCollection<RuleRow>();
         private bool _serviceRunning;
         private Guid? _selectedId;
         private bool _suppressSelection;
-        private List<RuleRow> _rows = new List<RuleRow>();
+        private bool _suppressFilter;
+        private List<RuleRow> _allRows = new List<RuleRow>();
 
         public RuleModulePage(IAppHost host, RuleModule module)
         {
             _host = host;
             _module = module;
             InitializeComponent();
+            RulesList.ItemsSource = _viewRows;
 
             TitleText.Text = Display.Module(module);
             DescText.Text = Describe(module);
-            TestButton.Visibility = module == RuleModule.CustomRegistry
+            TestRuleMenuItem.Visibility = module == RuleModule.CustomRegistry
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            ImportFormatsButton.Visibility = module == RuleModule.DefaultApp
+            ImportFormatsMenuItem.Visibility = module == RuleModule.DefaultApp
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            GroupApplyButton.Visibility = module == RuleModule.DefaultApp
+            GroupApplyMenuItem.Visibility = module == RuleModule.DefaultApp
                 ? Visibility.Visible
                 : Visibility.Collapsed;
-            ChangeAppButton.Visibility = module == RuleModule.DefaultApp
+            ChangeAppMenuItem.Visibility = module == RuleModule.DefaultApp
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            MoreButton.Visibility = module == RuleModule.DefaultApp
+                                    || module == RuleModule.CustomRegistry
                 ? Visibility.Visible
                 : Visibility.Collapsed;
 
+            _suppressFilter = true;
+            FilterBox.SelectedIndex = 0;
+            _suppressFilter = false;
+
             Editor.Configure(module);
+            Editor.SetInlineMode(true);
             Editor.SaveRequested += OnEditorSave;
             Editor.ResetRequested += OnEditorReset;
 
@@ -65,35 +79,97 @@ namespace EverDefault.App
 
             if (snapshot.Rules != null)
             {
-                var rows = snapshot.Rules.Where(r => r.Rule.Module == _module).ToList();
-                _rows = rows;
+                _allRows = snapshot.Rules.Where(r => r.Rule.Module == _module).ToList();
 
-                _suppressSelection = true;
-                RulesList.ItemsSource = rows;
-
-                if (_selectedId.HasValue)
+                if (_selectedId.HasValue && !_allRows.Any(r => r.Rule.Id == _selectedId.Value))
                 {
-                    var match = rows.FirstOrDefault(r => r.Rule.Id == _selectedId.Value);
-                    RulesList.SelectedItem = match;
-                    if (match == null)
-                    {
-                        _selectedId = null;
-                        Editor.Clear();
-                    }
+                    _selectedId = null;
+                    Editor.Clear();
                 }
 
-                _suppressSelection = false;
-
-                EmptyHint.Text = _serviceRunning && rows.Count == 0
-                    ? "还没有规则。点『新建』创建第一条，或点『测试规则』先体验一次。"
-                    : string.Empty;
+                RebuildView();
             }
             else
             {
-                EmptyHint.Text = _serviceRunning ? string.Empty : "后台服务未运行，无法读取规则。";
+                RebuildView();
             }
 
+            OfflinePanel.Visibility = _serviceRunning ? Visibility.Collapsed : Visibility.Visible;
+            Editor.IsEnabled = _serviceRunning;
             UpdateButtons();
+        }
+
+        private void RebuildView()
+        {
+            var filtered = _allRows.Where(Matches).ToList();
+            var currentIds = _viewRows.Select(r => r.Rule.Id).ToList();
+            var newIds = filtered.Select(r => r.Rule.Id).ToList();
+
+            _suppressSelection = true;
+            try
+            {
+                if (!currentIds.SequenceEqual(newIds))
+                {
+                    _viewRows.Clear();
+                    foreach (var row in filtered)
+                        _viewRows.Add(row);
+                }
+                else
+                {
+                    for (var i = 0; i < filtered.Count; i++)
+                    {
+                        if (!ReferenceEquals(_viewRows[i].Rule, filtered[i].Rule))
+                            _viewRows[i].Update(filtered[i].Rule);
+                    }
+                }
+
+                if (_selectedId.HasValue)
+                    RulesList.SelectedItem = _viewRows.FirstOrDefault(r => r.Rule.Id == _selectedId.Value);
+            }
+            finally
+            {
+                _suppressSelection = false;
+            }
+
+            CountText.Text = filtered.Count == _allRows.Count
+                ? "共 " + _allRows.Count + " 条"
+                : "显示 " + filtered.Count + " / " + _allRows.Count + " 条";
+
+            if (!_serviceRunning)
+                EmptyHint.Text = "后台服务未运行，无法读取规则。";
+            else if (_allRows.Count == 0)
+                EmptyHint.Text = "还没有规则。点『新建』创建第一条，或在『更多』中体验测试规则。";
+            else if (filtered.Count == 0)
+                EmptyHint.Text = "没有匹配的规则，试试其他关键词或筛选条件。";
+            else
+                EmptyHint.Text = string.Empty;
+        }
+
+        private bool Matches(RuleRow row)
+        {
+            var text = SearchBox.Text.Trim();
+            if (text.Length > 0
+                && !Contains(row.Name, text)
+                && !Contains(row.Target, text)
+                && !Contains(row.Summary, text))
+            {
+                return false;
+            }
+
+            var item = FilterBox.SelectedItem as ComboBoxItem;
+            var tag = item == null ? null : item.Tag as string;
+            if (string.Equals(tag, "enabled", StringComparison.OrdinalIgnoreCase))
+                return row.Rule.Enabled;
+            if (string.Equals(tag, "disabled", StringComparison.OrdinalIgnoreCase))
+                return !row.Rule.Enabled;
+
+            return true;
+        }
+
+        private static bool Contains(string value, string text)
+        {
+            return !string.IsNullOrEmpty(value)
+                   && value.IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
         private RuleRow CurrentRule()
@@ -101,7 +177,7 @@ namespace EverDefault.App
             if (!_selectedId.HasValue)
                 return null;
 
-            return _rows.FirstOrDefault(r => r.Rule.Id == _selectedId.Value);
+            return _allRows.FirstOrDefault(r => r.Rule.Id == _selectedId.Value);
         }
 
         private void UpdateButtons()
@@ -109,12 +185,21 @@ namespace EverDefault.App
             var current = CurrentRule();
 
             NewButton.IsEnabled = _serviceRunning;
+            MoreButton.IsEnabled = _serviceRunning;
             DeleteButton.IsEnabled = _serviceRunning && current != null;
-            TestButton.IsEnabled = _serviceRunning;
-            ImportFormatsButton.IsEnabled = _serviceRunning;
-            GroupApplyButton.IsEnabled = _serviceRunning;
-            ChangeAppButton.IsEnabled = _serviceRunning && current != null && current.Rule is DefaultAppRule;
+            ChangeAppMenuItem.IsEnabled = _serviceRunning && current != null && current.Rule is DefaultAppRule;
+            GroupApplyMenuItem.IsEnabled = _serviceRunning;
+            ImportFormatsMenuItem.IsEnabled = _serviceRunning;
+            TestRuleMenuItem.IsEnabled = _serviceRunning;
             Editor.CanSave = _serviceRunning;
+        }
+
+        private bool ConfirmDiscard(string action)
+        {
+            if (!Editor.IsDirty)
+                return true;
+
+            return _host.Confirm("当前规则有未保存的修改，" + action + "将丢失这些修改。是否继续？");
         }
 
         private void OnSelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -126,6 +211,22 @@ namespace EverDefault.App
             if (row == null)
                 return;
 
+            if (_selectedId.HasValue && _selectedId.Value == row.Rule.Id)
+            {
+                UpdateButtons();
+                return;
+            }
+
+            if (!ConfirmDiscard("切换到其他规则"))
+            {
+                _suppressSelection = true;
+                RulesList.SelectedItem = _selectedId.HasValue
+                    ? _viewRows.FirstOrDefault(r => r.Rule.Id == _selectedId.Value)
+                    : null;
+                _suppressSelection = false;
+                return;
+            }
+
             _selectedId = row.Rule.Id;
             Editor.LoadRule(row.Rule);
             UpdateButtons();
@@ -133,12 +234,18 @@ namespace EverDefault.App
 
         private void OnNew(object sender, RoutedEventArgs e)
         {
-            _selectedId = null;
+            if (!_serviceRunning)
+                return;
+
+            if (!ConfirmDiscard("新建规则"))
+                return;
+
             _suppressSelection = true;
             RulesList.SelectedItem = null;
+            _selectedId = null;
             _suppressSelection = false;
 
-            Editor.Clear();
+            Editor.BeginNew();
             UpdateButtons();
         }
 
@@ -172,19 +279,22 @@ namespace EverDefault.App
             var rule = Editor.BuildRule(out error);
             if (rule == null)
             {
-                _host.ShowWarning("规则无效：" + error);
+                Editor.ShowError(error);
                 return;
             }
 
             var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
             if (!response.Success)
             {
-                _host.ShowWarning("服务未运行，规则未保存：\n" + response.Error);
+                Editor.ShowError("服务未运行，规则未保存：\n" + response.Error);
                 return;
             }
 
+            Editor.AcceptSaved(rule);
+            Editor.ShowStatus("已保存");
             _selectedId = rule.Id;
             _host.Refresh();
+            UpdateButtons();
         }
 
         private void OnEditorReset(object sender, EventArgs e)
@@ -192,8 +302,12 @@ namespace EverDefault.App
             var row = CurrentRule();
             if (row != null)
                 Editor.LoadRule(row.Rule);
+            else if (Editor.IsNewDraft)
+                Editor.BeginNew();
             else
                 Editor.Clear();
+
+            UpdateButtons();
         }
 
         private async void OnChangeApp(object sender, RoutedEventArgs e)
@@ -258,7 +372,10 @@ namespace EverDefault.App
             }
 
             _selectedId = updated.Id;
+            Editor.LoadRule(updated);
+            Editor.ShowStatus("已换应用");
             _host.Refresh();
+            UpdateButtons();
         }
 
         private async void OnImportFormats(object sender, RoutedEventArgs e)
@@ -323,11 +440,83 @@ namespace EverDefault.App
 
             _host.ShowInfo(
                 "已创建测试规则（仅记录，不改动）。\n\n" +
-                "用 regedit 或命令行在下面这个键下新建/修改任意值，几秒后即可在“日志”页看到：\n" +
+                "用 regedit 或命令行在下面这个键下新建/修改任意值，几秒后即可在“活动”页看到：\n" +
                 @"HKEY_CURRENT_USER\Software\EverDefaultTest\");
 
             _selectedId = rule.Id;
+            Editor.LoadRule(rule);
             _host.Refresh();
+            UpdateButtons();
+        }
+
+        private void OnSearchChanged(object sender, TextChangedEventArgs e)
+        {
+            SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
+                ? Visibility.Visible
+                : Visibility.Collapsed;
+            RebuildView();
+        }
+
+        private void OnFilterChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressFilter)
+                return;
+
+            RebuildView();
+        }
+
+        private void OnMoreClick(object sender, RoutedEventArgs e)
+        {
+            var menu = MoreButton.ContextMenu;
+            if (menu == null)
+                return;
+
+            menu.PlacementTarget = MoreButton;
+            menu.Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom;
+            menu.IsOpen = true;
+        }
+
+        private void OnListDoubleClick(object sender, MouseButtonEventArgs e)
+        {
+            if (CurrentRule() != null)
+                Editor.FocusName();
+        }
+
+        private void OnPageKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.N && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                OnNew(this, new RoutedEventArgs());
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.S && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (Editor.CanSave && Editor.HasDraft)
+                    OnEditorSave(this, EventArgs.Empty);
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.Delete
+                && !(Keyboard.FocusedElement is TextBox)
+                && !(Keyboard.FocusedElement is ComboBox)
+                && DeleteButton.IsEnabled)
+            {
+                OnDelete(this, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        }
+
+        private void OnOpenSettings(object sender, RoutedEventArgs e)
+        {
+            _host.Navigate("settings");
+        }
+
+        private void OnStartService(object sender, RoutedEventArgs e)
+        {
+            ServiceConnector.TryStart(_host);
         }
     }
 }

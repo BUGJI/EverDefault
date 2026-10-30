@@ -51,6 +51,10 @@ namespace EverDefault.Service.Hosting
                         var entries = _host.GetLog(query.Max, query.RuleId);
                         return IpcResponse.Ok(PipeJson.Serialize(new LogPage { Entries = new System.Collections.Generic.List<ChangeLogEntry>(entries) }));
 
+                    case IpcProtocol.CommandClearLog:
+                        _host.ClearLog();
+                        return IpcResponse.Ok();
+
                     case IpcProtocol.CommandGetConflicts:
                         return IpcResponse.Ok(PipeJson.Serialize(_host.GetRules().Conflicts));
 
@@ -68,6 +72,18 @@ namespace EverDefault.Service.Hosting
                     case IpcProtocol.CommandReloadRules:
                         _host.Reload();
                         return IpcResponse.Ok();
+
+                    case IpcProtocol.CommandPauseAll:
+                        _host.PauseAll(PipeJson.Deserialize<int>(request.Payload));
+                        return IpcResponse.Ok();
+
+                    case IpcProtocol.CommandResumeAll:
+                        _host.ResumeAll();
+                        return IpcResponse.Ok();
+
+                    case IpcProtocol.CommandScanNamespaces:
+                        return IpcResponse.Ok(PipeJson.Serialize(
+                            new NameSpaceScanResult { Entries = _host.ScanNameSpaces() }));
 
                     default:
                         return IpcResponse.Fail("unknown command: " + request.Command);

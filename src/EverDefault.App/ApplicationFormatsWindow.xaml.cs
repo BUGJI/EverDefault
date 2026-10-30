@@ -7,7 +7,7 @@ using EverDefault.Core.Model;
 
 namespace EverDefault.App
 {
-    public partial class ApplicationFormatsWindow : Window
+    public partial class ApplicationFormatsWindow : DialogWindow
     {
         private readonly List<AppInfo> _apps = new List<AppInfo>();
         private AppInfo _scannedApp;

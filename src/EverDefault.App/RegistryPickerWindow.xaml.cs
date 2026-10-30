@@ -8,10 +8,11 @@ using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using Microsoft.Win32;
+using Win32Registry = Microsoft.Win32.Registry;
 
 namespace EverDefault.App
 {
-    public partial class RegistryPickerWindow : Window
+    public partial class RegistryPickerWindow : DialogWindow
     {
         private const int FirstBatch = 200;
         private const int BatchSize = 150;
@@ -21,11 +22,11 @@ namespace EverDefault.App
         private static readonly Dictionary<string, RegistryKey> Bases =
             new Dictionary<string, RegistryKey>(StringComparer.OrdinalIgnoreCase)
             {
-                { "HKEY_CURRENT_USER", Registry.CurrentUser },
-                { "HKEY_LOCAL_MACHINE", Registry.LocalMachine },
-                { "HKEY_CLASSES_ROOT", Registry.ClassesRoot },
-                { "HKEY_USERS", Registry.Users },
-                { "HKEY_CURRENT_CONFIG", Registry.CurrentConfig }
+                { "HKEY_CURRENT_USER", Win32Registry.CurrentUser },
+                { "HKEY_LOCAL_MACHINE", Win32Registry.LocalMachine },
+                { "HKEY_CLASSES_ROOT", Win32Registry.ClassesRoot },
+                { "HKEY_USERS", Win32Registry.Users },
+                { "HKEY_CURRENT_CONFIG", Win32Registry.CurrentConfig }
             };
 
         private readonly bool _leafNameOnly;

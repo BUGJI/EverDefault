@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using Microsoft.Win32;
+using Win32Registry = Microsoft.Win32.Registry;
 
 namespace EverDefault.App
 {
@@ -19,7 +20,7 @@ namespace EverDefault.App
         {
             try
             {
-                using (var key = Registry.CurrentUser.OpenSubKey(RunKey, true))
+                using (var key = Win32Registry.CurrentUser.OpenSubKey(RunKey, true))
                 {
                     if (key == null)
                         return;

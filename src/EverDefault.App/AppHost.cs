@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using EverDefault.Core.Model;
@@ -13,6 +14,16 @@ namespace EverDefault.App
         Task<IpcResponse> SendAsync(string command, object payload = null);
 
         void Refresh();
+
+        /// <summary>Switches the main window to a page key (home / protection / activity / settings).</summary>
+        void Navigate(string pageKey);
+
+        /// <summary>Opens the activity page with the given filter (all / blocked / failed).</summary>
+        void ShowActivity(string filter);
+
+        void ExportBackup();
+
+        void ImportBackup();
 
         void ShowInfo(string message);
 
@@ -30,16 +41,12 @@ namespace EverDefault.App
         void ApplySnapshot(RefreshSnapshot snapshot);
     }
 
-    public sealed class ScrollState
-    {
-        public double Vertical;
-
-        public double Horizontal;
-    }
-
     public sealed class RefreshSnapshot
     {
         public bool ServiceRunning;
+
+        /// <summary>True while the app is still waiting for a just-launched engine.</summary>
+        public bool ServiceStarting;
 
         public string StatusError;
 
@@ -49,6 +56,8 @@ namespace EverDefault.App
 
         public List<string> Conflicts;
 
-        public List<LogRow> Logs;
+        public List<Guid> ConflictingRuleIds;
+
+        public List<ActivityItem> Logs;
     }
 }

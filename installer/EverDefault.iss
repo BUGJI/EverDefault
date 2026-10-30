@@ -6,7 +6,7 @@
 ; build-installer.cmd 会读取它并以 ISCC /DMyAppVersion=<版本> 传入，
 ; 下面这段仅在直接编译本脚本（不经 build-installer.cmd）时作为兜底默认值。
 #ifndef MyAppVersion
-  #define MyAppVersion "1.1.3"
+  #define MyAppVersion "2.0.1"
 #endif
 #define MyAppExeName "EverDefault.App.exe"
 #define MyServiceExeName "EverDefault.Service.exe"
@@ -37,7 +37,7 @@ SetupIconFile=..\src\EverDefault.App\Assets\logo.ico
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"; Flags: unchecked
+Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "附加任务:"
 
 [Files]
 Source: "..\dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
@@ -76,7 +76,7 @@ begin
        'create {#MyServiceName} binPath= "' + BinPath + '" start= auto DisplayName= "EverDefault Registry Guard"',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(ExpandConstant('{sys}\sc.exe'),
-       'description {#MyServiceName} "EverDefault 注册表守护：监控并还原默认应用、名称空间与自定义注册表项。"',
+       'description {#MyServiceName} "EverDefault：守住你选择的默认程序和系统设置，被其他程序改动时自动改回。"',
        '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
   Exec(ExpandConstant('{sys}\sc.exe'),
        'failure {#MyServiceName} reset= 86400 actions= restart/5000/restart/5000/restart/5000',

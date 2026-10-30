@@ -3,50 +3,248 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
-            <TextBlock Text="主页" FontSize="18" FontWeight="Bold" />
-            <TextBlock Text="EverDefault 会锁定你选择的东西，被其他软件改动后自动改回。" Style="{StaticResource HintText}" Margin="0,4,0,0" />
+            <TextBlock Text="主页" Style="{StaticResource PageTitle}" />
+            <TextBlock Style="{StaticResource PageHint}"
+                       Text="EverDefault 会守住你选择的默认程序和系统设置，被其他程序改动时自动改回。" />
 
-            <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
-                <StackPanel>
-                    <DockPanel LastChildFill="True">
-                        <Border DockPanel.Dock="Right" Margin="12,0,0,0" Padding="12,6"
-                                CornerRadius="6" Background="{DynamicResource ControlBackgroundBrush}"
-                                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1"
-                                ToolTip="用户模式：随登录启动，仅守护当前用户。服务模式：由 Windows 服务守护。可在“设置”中切换。">
-                            <TextBlock x:Name="ModeLabel" FontWeight="Bold" />
+            <Border Style="{StaticResource CardPanel}" Margin="0,14,0,0">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center"
+                                Margin="16,0,0,0">
+                        <Button x:Name="ReconnectButton" Content="重试连接" Style="{StaticResource SubtleButton}"
+                                MinWidth="88" Margin="0,0,8,0" Visibility="Collapsed" Click="OnReconnect" />
+                        <Border x:Name="ModeBadge" Padding="9,4" Margin="0,0,8,0" CornerRadius="10"
+                                Background="{DynamicResource ControlBackgroundBrush}"
+                                BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1">
+                            <TextBlock x:Name="ModeLabel" FontSize="{StaticResource FontSizeCaption}"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
                         </Border>
-                        <TextBlock x:Name="StatusTitle" FontSize="15" FontWeight="Bold"
-                                   VerticalAlignment="Center" TextWrapping="Wrap" />
-                    </DockPanel>
-                    <TextBlock x:Name="StatusDetail" Style="{StaticResource HintText}" Margin="0,6,0,0" />
-                    <TextBlock x:Name="ActionStatus" Style="{StaticResource HintText}" Margin="0,6,0,0" />
-
-                    <TextBlock Text="自本次服务启动以来" Style="{StaticResource SectionHeader}" Margin="0,16,0,6" />
-                    <StackPanel Orientation="Horizontal">
-                        <StackPanel Margin="0,0,32,0">
-                            <TextBlock Text="已记录" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
-                            <TextBlock x:Name="ObservedText" FontSize="24" FontWeight="Bold" Text="0" />
-                        </StackPanel>
-                        <StackPanel Margin="0,0,32,0">
-                            <TextBlock Text="已拦截" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
-                            <TextBlock x:Name="BlockedText" FontSize="24" FontWeight="Bold" Text="0"
-                                       Foreground="{DynamicResource AccentBrush}" />
-                        </StackPanel>
-                        <StackPanel>
-                            <TextBlock Text="拦截失败" Foreground="{DynamicResource TextMutedBrush}" FontSize="12" />
-                            <TextBlock x:Name="FailedText" FontSize="24" FontWeight="Bold" Text="0" />
-                        </StackPanel>
+                        <Button x:Name="PauseButton" Style="{StaticResource PrimaryButton}"
+                                MinWidth="118" Click="OnPause" />
                     </StackPanel>
-                </StackPanel>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border x:Name="StatusTile" Width="52" Height="52" CornerRadius="{StaticResource RadiusLarge}"
+                                Style="{StaticResource IconTile}"
+                                Background="{DynamicResource SuccessSubtleBrush}" VerticalAlignment="Center">
+                            <TextBlock x:Name="StatusGlyph" Text="&#xE73E;"
+                                       FontFamily="{StaticResource IconFontFamily}" FontSize="24"
+                                       HorizontalAlignment="Center" VerticalAlignment="Center"
+                                       Foreground="{DynamicResource SuccessBrush}" />
+                        </Border>
+                        <StackPanel Grid.Column="1" Margin="14,0,0,0" VerticalAlignment="Center">
+                            <TextBlock x:Name="StatusTitle" FontSize="17" FontWeight="SemiBold" />
+                            <TextBlock x:Name="StatusDetail" Style="{StaticResource HintText}" Margin="0,4,0,0" />
+                        </StackPanel>
+                    </Grid>
+                </DockPanel>
             </Border>
 
-            <TextBlock x:Name="ConflictText" Foreground="DarkRed" TextWrapping="Wrap" Margin="0,12,0,0" />
+            <Grid Margin="0,10,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
 
-            <Border Style="{StaticResource CardPanel}" Margin="0,12,0,0">
+                <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,10,0"
+                        Cursor="Hand" Tag="all" MouseLeftButtonUp="OnStatClick"
+                        ToolTip="查看全部活动">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE81C;" Style="{StaticResource IconGlyph}"
+                                       FontSize="13" Foreground="{DynamicResource TextMutedBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="已记录（本次）" Style="{StaticResource StatLabel}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="ObservedText" Style="{StaticResource StatValue}" Text="0" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="0,0,10,0"
+                        Cursor="Hand" Tag="blocked" MouseLeftButtonUp="OnStatClick"
+                        ToolTip="查看已拦截的活动">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE73E;" Style="{StaticResource IconGlyph}"
+                                       FontSize="13" Foreground="{DynamicResource SuccessBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="已拦截（本次）" Style="{StaticResource StatLabel}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="BlockedText" Style="{StaticResource StatValue}" Text="0"
+                                   Foreground="{DynamicResource SuccessBrush}" />
+                    </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Style="{StaticResource CardPanel}"
+                        Cursor="Hand" Tag="failed" MouseLeftButtonUp="OnStatClick"
+                        ToolTip="查看需要处理的活动">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <TextBlock Text="&#xE7BA;" Style="{StaticResource IconGlyph}"
+                                       FontSize="13" Foreground="{DynamicResource DangerBrush}"
+                                       VerticalAlignment="Center" Margin="0,0,6,0" />
+                            <TextBlock Text="拦截失败（本次）" Style="{StaticResource StatLabel}" VerticalAlignment="Center" />
+                        </StackPanel>
+                        <TextBlock x:Name="FailedText" Style="{StaticResource StatValue}" Text="0" />
+                    </StackPanel>
+                </Border>
+            </Grid>
+
+            <Border x:Name="ConflictCard" Style="{StaticResource CardPanel}" Margin="0,10,0,0"
+                    Background="{DynamicResource WarningSubtleBrush}"
+                    BorderBrush="{DynamicResource WarningBrush}" Visibility="Collapsed">
+                <DockPanel>
+                    <Button DockPanel.Dock="Right" Content="立即处理" MinWidth="92" Margin="12,0,0,0"
+                            Click="OnResolveConflicts" />
+                    <TextBlock x:Name="ConflictText" VerticalAlignment="Center" TextWrapping="Wrap"
+                               Foreground="{DynamicResource WarningBrush}" />
+                </DockPanel>
+            </Border>
+
+            <TextBlock Text="推荐保护" Style="{StaticResource SectionHeader}" Margin="0,18,0,0" />
+            <TextBlock Style="{StaticResource HintText}" Margin="0,0,0,10"
+                       Text="点一下即可保护你现在正在使用的程序。" />
+
+            <UniformGrid Columns="2">
+                <Border Style="{StaticResource CardPanel}" Margin="0,0,10,10">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="28" Height="28" CornerRadius="{StaticResource RadiusCard}"
+                                    Style="{StaticResource IconTile}"
+                                    Background="{DynamicResource AccentSubtleBrush}">
+                                <TextBlock Text="&#xE774;" FontFamily="{StaticResource IconFontFamily}"
+                                           FontSize="14" Foreground="{DynamicResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="浏览器和邮件" FontWeight="SemiBold" FontSize="14"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource HintText}" Margin="0,8,0,4"
+                                   Text="守住网页和邮件链接的默认程序。" />
+                        <TextBlock x:Name="BrowserStateText" Style="{StaticResource HintText}"
+                                   Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
+                        <Button Content="保护浏览器和邮件" Tag="browser"
+                                Click="OnTemplate" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardPanel}" Margin="0,0,0,10">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="28" Height="28" CornerRadius="{StaticResource RadiusCard}"
+                                    Style="{StaticResource IconTile}"
+                                    Background="{DynamicResource AccentSubtleBrush}">
+                                <TextBlock Text="&#xE8A5;" FontFamily="{StaticResource IconFontFamily}"
+                                           FontSize="14" Foreground="{DynamicResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="PDF 和文档" FontWeight="SemiBold" FontSize="14"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource HintText}" Margin="0,8,0,4"
+                                   Text="防止 PDF、Word、Excel 打开方式被换掉。" />
+                        <TextBlock x:Name="DocsStateText" Style="{StaticResource HintText}"
+                                   Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
+                        <Button Content="保护文档" Tag="docs"
+                                Click="OnTemplate" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardPanel}" Margin="0,0,10,0">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="28" Height="28" CornerRadius="{StaticResource RadiusCard}"
+                                    Style="{StaticResource IconTile}"
+                                    Background="{DynamicResource AccentSubtleBrush}">
+                                <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFontFamily}"
+                                           FontSize="14" Foreground="{DynamicResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="整理此电脑" FontWeight="SemiBold" FontSize="14"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource HintText}" Margin="0,8,0,4"
+                                   Text="扫描并移除多出来的图标。" />
+                        <TextBlock x:Name="NameSpaceStateText" Style="{StaticResource HintText}"
+                                   Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
+                        <Button Content="扫描此电脑" Tag="thispc"
+                                Click="OnTemplate" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+                <Border Style="{StaticResource CardPanel}">
+                    <StackPanel>
+                        <StackPanel Orientation="Horizontal">
+                            <Border Width="28" Height="28" CornerRadius="{StaticResource RadiusCard}"
+                                    Style="{StaticResource IconTile}"
+                                    Background="{DynamicResource AccentSubtleBrush}">
+                                <TextBlock Text="&#xE713;" FontFamily="{StaticResource IconFontFamily}"
+                                           FontSize="14" Foreground="{DynamicResource AccentBrush}"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" />
+                            </Border>
+                            <TextBlock Text="系统设置" FontWeight="SemiBold" FontSize="14"
+                                       VerticalAlignment="Center" Margin="10,0,0,0" />
+                        </StackPanel>
+                        <TextBlock Style="{StaticResource HintText}" Margin="0,8,0,4"
+                                   Text="锁定文件扩展名、隐藏文件等常用设置。" />
+                        <TextBlock x:Name="SettingsStateText" Style="{StaticResource HintText}"
+                                   Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
+                        <Button Content="选择设置" Tag="settings"
+                                Click="OnTemplate" HorizontalAlignment="Left" />
+                    </StackPanel>
+                </Border>
+            </UniformGrid>
+
+            <Border Style="{StaticResource CardPanel}" Margin="0,10,0,0">
                 <StackPanel>
-                    <TextBlock Text="三步上手" Style="{StaticResource SectionHeader}" />
-                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource TextSecondaryBrush}"
-                               Text="1. 打开软件即自动连接服务：已安装服务则进入服务模式，未安装则以用户模式运行（无需管理员）。&#10;&#10;2. 创建规则：到左侧“规则”分类里点『新建』，填好目标后保存；也可以用『测试规则』先跑通流程。&#10;&#10;3. 验证：用 regedit 改动被保护的键，几秒后到“日志”页即可看到记录与处理结果。" />
+                    <DockPanel Margin="0,0,0,4">
+                        <Button DockPanel.Dock="Right" Content="查看全部" Style="{StaticResource SubtleButton}"
+                                MinWidth="82" Click="OnOpenActivity" />
+                        <TextBlock Text="最近活动" Style="{StaticResource SectionHeader}" VerticalAlignment="Center" />
+                    </DockPanel>
+
+                    <StackPanel x:Name="RecentEmpty" Margin="0,10,0,4">
+                        <TextBlock Text="&#xE81C;" FontFamily="{StaticResource IconFontFamily}"
+                                   FontSize="22" Foreground="{DynamicResource TextMutedBrush}"
+                                   HorizontalAlignment="Center" />
+                        <TextBlock Style="{StaticResource HintText}" Margin="0,6,0,0"
+                                   HorizontalAlignment="Center"
+                                   Text="还没有活动。保护生效后，这里会显示每一次拦截。" />
+                    </StackPanel>
+
+                    <ItemsControl x:Name="RecentList" Margin="0,4,0,0">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,5">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <Border Width="28" Height="28" CornerRadius="{StaticResource RadiusCard}"
+                                            Style="{StaticResource IconTile}"
+                                            Background="{DynamicResource AccentSubtleBrush}"
+                                            VerticalAlignment="Top">
+                                        <TextBlock Text="{Binding Glyph}"
+                                                   FontFamily="{StaticResource IconFontFamily}"
+                                                   FontSize="13" HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource AccentBrush}" />
+                                    </Border>
+                                    <StackPanel Grid.Column="1" Margin="10,0,8,0">
+                                        <TextBlock Text="{Binding Title}" FontSize="{StaticResource FontSizeBody}" FontWeight="SemiBold" />
+                                        <TextBlock Text="{Binding Detail}" FontSize="{StaticResource FontSizeCaption}" TextWrapping="Wrap"
+                                                   Foreground="{DynamicResource TextMutedBrush}" Margin="0,2,0,0" />
+                                    </StackPanel>
+                                    <TextBlock Grid.Column="2" Text="{Binding TimeText}" FontSize="{StaticResource FontSizeCaption}"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               VerticalAlignment="Top" Margin="8,2,0,0" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+
+                    <TextBlock x:Name="ActionStatus" Style="{StaticResource HintText}" Margin="0,8,0,0" />
                 </StackPanel>
             </Border>
         </StackPanel>

@@ -60,6 +60,14 @@ namespace EverDefault.Persistence
             }
         }
 
+        public void Clear()
+        {
+            lock (_sync)
+            {
+                Save(new List<ChangeLogEntry>());
+            }
+        }
+
         private List<ChangeLogEntry> Load()
         {
             if (_cache == null)

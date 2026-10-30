@@ -1,0 +1,38 @@
+<local:DialogWindow x:Class="EverDefault.App.ProtectFileTypeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:EverDefault.App"
+        Title="保护一个文件类型" Height="470" Width="620"
+        MinHeight="380" MinWidth="520"
+        Background="{DynamicResource WindowBackgroundBrush}"
+        Foreground="{DynamicResource TextPrimaryBrush}"
+        WindowStartupLocation="CenterOwner"
+        Style="{StaticResource DialogWindowStyle}">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0" Style="{StaticResource HintText}"
+                   Text="输入扩展名，或选择一个文件。EverDefault 会读取它现在的默认程序并守住。" />
+
+        <StackPanel Grid.Row="1" Orientation="Horizontal" Margin="0,12,0,0">
+            <TextBox x:Name="ExtensionBox" Width="180" TextChanged="OnTextChanged"
+                     ToolTip="例如 .pdf 或 pdf" />
+            <Button Content="选择文件..." Width="90" Margin="8,0,0,0" Click="OnBrowse" />
+            <TextBlock x:Name="CurrentText" Style="{StaticResource HintText}"
+                       VerticalAlignment="Center" Margin="12,0,0,0" />
+        </StackPanel>
+
+        <local:ProtectionPreview x:Name="Preview" Grid.Row="2" Margin="0,12,0,0" />
+
+        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button x:Name="ProtectButton" Content="保护它" Style="{StaticResource PrimaryButton}"
+                    Width="100" Margin="0,0,8,0" IsDefault="True" IsEnabled="False" Click="OnProtect" />
+            <Button Content="取消" Width="80" IsCancel="True" />
+        </StackPanel>
+    </Grid>
+</local:DialogWindow>

@@ -24,7 +24,7 @@ namespace EverDefault.App
     /// Re-targets an existing group of extensions to a new application: pick the app,
     /// resolve each extension's ProgId from the registry, and return the new mapping.
     /// </summary>
-    public partial class ChangeAppWindow : Window
+    public partial class ChangeAppWindow : DialogWindow
     {
         private readonly List<string> _extensions;
         private readonly List<AppInfo> _apps = new List<AppInfo>();

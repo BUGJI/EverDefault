@@ -3,6 +3,8 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Threading;
 using EverDefault.Core.Model;
 
 namespace EverDefault.App
@@ -13,11 +15,18 @@ namespace EverDefault.App
         private static readonly Visibility Hidden = Visibility.Collapsed;
         private static readonly Visibility Shown = Visibility.Visible;
 
+        private readonly DispatcherTimer _statusTimer;
         private RuleModule _module = RuleModule.CustomRegistry;
         private Guid? _editingId;
         private RuleBase _editingBase;
         private bool _nameTouched;
         private bool _suppressName;
+        private bool _loading;
+        private bool _dirty;
+        private bool _isNew;
+        private bool _inlineMode;
+        private bool _embedded;
+        private bool _serviceAvailable;
         private string _lastSuggestion = string.Empty;
         private string _appPath;
         private Dictionary<string, string> _progIdMap =
@@ -32,6 +41,14 @@ namespace EverDefault.App
             NsScopeBox.ItemsSource = Display.Options<NameSpaceDeleteScope>(Display.NsScope);
             MatchTypeBox.ItemsSource = Display.Options<ValueMatchType>(Display.ValueMatch);
             OnMismatchBox.ItemsSource = Display.Options<RuleAction>(Display.Action);
+            ExpectedKindBox.ItemsSource = new[] { "String", "DWord", "QWord", "MultiString", "Binary" };
+
+            _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
+            _statusTimer.Tick += (sender, args) =>
+            {
+                _statusTimer.Stop();
+                StatusText.Visibility = Hidden;
+            };
 
             Clear();
 
@@ -43,6 +60,34 @@ namespace EverDefault.App
             NsPatternBox.TextChanged += OnFieldChanged;
             KeyPatternsBox.TextChanged += OnFieldChanged;
             ValueNameBox.TextChanged += OnFieldChanged;
+
+            Track(NameBox);
+            Track(IntervalBox);
+            Track(AppNameBox);
+            Track(ExtensionsBox);
+            Track(ProtocolsBox);
+            Track(ProgIdBox);
+            Track(ProtocolProgIdBox);
+            Track(NsPathsBox);
+            Track(NsPatternBox);
+            Track(KeyPatternsBox);
+            Track(ValueNameBox);
+            Track(ExpectedKindBox);
+            ExpectedKindBox.AddHandler(
+                TextBoxBase.TextChangedEvent,
+                new TextChangedEventHandler(OnEditedText));
+            Track(ExpectedDataBox);
+            Track(PolicyKeyBox);
+            Track(ModeBox);
+            Track(ActionBox);
+            Track(NsMatchTypeBox);
+            Track(NsScopeBox);
+            Track(MatchTypeBox);
+            Track(OnMismatchBox);
+            Track(EnabledBox);
+            Track(OpenWithBox);
+            Track(FileAssocBox);
+            Track(RefreshShellBox);
         }
 
         public event EventHandler SaveRequested;
@@ -54,30 +99,76 @@ namespace EverDefault.App
             get { return _editingId; }
         }
 
+        public bool IsDirty
+        {
+            get { return _dirty; }
+        }
+
+        public bool IsNewDraft
+        {
+            get { return _isNew; }
+        }
+
+        public bool HasDraft
+        {
+            get { return _isNew || _editingId.HasValue; }
+        }
+
         public bool CanSave
         {
             get { return SaveButton.IsEnabled; }
-            set { SaveButton.IsEnabled = value; }
+            set
+            {
+                _serviceAvailable = value;
+                UpdateSaveState();
+            }
+        }
+
+        /// <summary>Hides the save/reset footer when hosted as the "advanced" tab.</summary>
+        public void SetEmbedded(bool embedded)
+        {
+            _embedded = embedded;
+            UpdateFooterVisibility();
+        }
+
+        /// <summary>
+        /// In the main-window rule pages, an empty editor means "nothing selected" rather than
+        /// "ready for a new rule"; the user clicks New to explicitly start a draft.
+        /// </summary>
+        public void SetInlineMode(bool inline)
+        {
+            _inlineMode = inline;
+            UpdateEmptyState();
         }
 
         public void Configure(RuleModule module)
         {
             _module = module;
-            AppSection.Visibility = module == RuleModule.DefaultApp ? Shown : Hidden;
-            NsSection.Visibility = module == RuleModule.NameSpace ? Shown : Hidden;
-            CustomSection.Visibility = module == RuleModule.CustomRegistry ? Shown : Hidden;
+            _loading = true;
+            try
+            {
+                AppSection.Visibility = module == RuleModule.DefaultApp ? Shown : Hidden;
+                NsSection.Visibility = module == RuleModule.NameSpace ? Shown : Hidden;
+                CustomSection.Visibility = module == RuleModule.CustomRegistry ? Shown : Hidden;
 
-            ActionBox.ItemsSource = ActionOptions(module);
-            if (!(ActionBox.SelectedValue is RuleAction))
-                ActionBox.SelectedValue = RuleAction.LogOnly;
+                ActionBox.ItemsSource = ActionOptions(module);
+                if (!(ActionBox.SelectedValue is RuleAction))
+                    ActionBox.SelectedValue = RuleAction.Restore;
+            }
+            finally
+            {
+                _loading = false;
+            }
 
             _nameTouched = false;
-            RefreshAutoName();
+            UpdateConditionalVisibility();
+            UpdateKind();
+            UpdateEmptyState();
         }
 
         /// <summary>
         /// "WritePolicy" is only meaningful for CustomRegistry, so hide it from the other modules'
-        /// action dropdown. The per-rule "不一致时" dropdown stays complete for the custom editor.
+        /// action dropdown. The custom editor shows a single action dropdown instead.
         /// </summary>
         private static List<EnumOption> ActionOptions(RuleModule module)
         {
@@ -90,23 +181,100 @@ namespace EverDefault.App
                 .ToList();
         }
 
+        public void BeginNew()
+        {
+            _loading = true;
+            _suppressName = true;
+            try
+            {
+                ResetFields();
+                _editingId = null;
+                _editingBase = null;
+                _isNew = true;
+                _nameTouched = false;
+            }
+            finally
+            {
+                _suppressName = false;
+                _loading = false;
+            }
+
+            _lastSuggestion = ComputeSuggestion();
+            MarkClean();
+            UpdateKind();
+            UpdateConditionalVisibility();
+            UpdateEmptyState();
+            FocusName();
+        }
+
         public void Clear()
         {
+            _loading = true;
             _suppressName = true;
-            ResetFields();
-            _suppressName = false;
+            try
+            {
+                ResetFields();
+                _editingId = null;
+                _editingBase = null;
+                _isNew = false;
+                _nameTouched = false;
+            }
+            finally
+            {
+                _suppressName = false;
+                _loading = false;
+            }
 
-            _editingId = null;
-            _editingBase = null;
-            _nameTouched = false;
-            RefreshAutoName();
+            _lastSuggestion = ComputeSuggestion();
+            MarkClean();
+            UpdateKind();
+            UpdateConditionalVisibility();
+            UpdateEmptyState();
+        }
+
+        public void FocusName()
+        {
+            if (NameBox.Visibility != Visibility.Visible)
+                return;
+
+            NameBox.Focus();
+            NameBox.SelectAll();
+        }
+
+        public void ShowError(string error)
+        {
+            ValidationText.Text = string.IsNullOrWhiteSpace(error) ? "规则无效。" : error;
+            ValidationText.Visibility = Shown;
+        }
+
+        public void ShowStatus(string message)
+        {
+            StatusText.Text = message ?? string.Empty;
+            StatusText.Visibility = Shown;
+            _statusTimer.Stop();
+            _statusTimer.Start();
+        }
+
+        public void AcceptSaved(RuleBase rule)
+        {
+            if (rule == null)
+                return;
+
+            _editingId = rule.Id;
+            _editingBase = rule;
+            _isNew = false;
+            _lastSuggestion = ComputeSuggestion();
+            _nameTouched = true;
+            MarkClean();
+            UpdateKind();
+            UpdateEmptyState();
         }
 
         private void ResetFields()
         {
             NameBox.Text = string.Empty;
             ModeBox.SelectedValue = RuleMode.Monitor;
-            ActionBox.SelectedValue = RuleAction.LogOnly;
+            ActionBox.SelectedValue = RuleAction.Restore;
             EnabledBox.IsChecked = true;
             IntervalBox.Text = "60";
 
@@ -117,6 +285,7 @@ namespace EverDefault.App
             ProtocolProgIdBox.Text = string.Empty;
             OpenWithBox.IsChecked = true;
             FileAssocBox.IsChecked = true;
+            ProgIdAdvanced.IsExpanded = false;
             _appPath = null;
             _progIdMap = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
             UpdateAppMapHint();
@@ -134,19 +303,28 @@ namespace EverDefault.App
             ExpectedDataBox.Text = string.Empty;
             OnMismatchBox.SelectedValue = RuleAction.Restore;
             PolicyKeyBox.Text = string.Empty;
+
+            ValidationText.Text = string.Empty;
+            ValidationText.Visibility = Hidden;
         }
 
         public void LoadRule(RuleBase rule)
         {
-            _suppressName = true;
-            ResetFields();
-            _editingId = null;
-            _editingBase = null;
-
-            if (rule != null)
+            if (rule == null)
             {
+                Clear();
+                return;
+            }
+
+            _loading = true;
+            _suppressName = true;
+            try
+            {
+                ResetFields();
                 _editingId = rule.Id;
                 _editingBase = rule;
+                _isNew = false;
+
                 NameBox.Text = rule.Name;
                 ModeBox.SelectedValue = rule.Mode;
                 ActionBox.SelectedValue = rule.Action;
@@ -188,17 +366,51 @@ namespace EverDefault.App
                     MatchTypeBox.SelectedValue = custom.MatchType;
                     ExpectedKindBox.Text = custom.ExpectedKind;
                     ExpectedDataBox.Text = custom.ExpectedData;
-                    OnMismatchBox.SelectedValue = custom.OnMismatch;
+                    OnMismatchBox.SelectedValue = custom.OnMismatch != RuleAction.Restore
+                        ? custom.OnMismatch
+                        : custom.Action;
                     PolicyKeyBox.Text = custom.PolicyKey;
                 }
+
+                _lastSuggestion = ComputeSuggestion();
+                _nameTouched = true;
+            }
+            finally
+            {
+                _suppressName = false;
+                _loading = false;
             }
 
-            _lastSuggestion = ComputeSuggestion();
-            _nameTouched = rule != null;
-            _suppressName = false;
+            MarkClean();
+            UpdateKind();
+            UpdateConditionalVisibility();
+            UpdateEmptyState();
+            ProgIdAdvanced.IsExpanded = !string.IsNullOrWhiteSpace(ProgIdBox.Text)
+                                        || !string.IsNullOrWhiteSpace(ProtocolProgIdBox.Text);
+        }
 
-            if (rule == null)
-                RefreshAutoName();
+        private void Track(Control control)
+        {
+            var textBox = control as TextBox;
+            if (textBox != null)
+            {
+                textBox.TextChanged += OnEdited;
+                return;
+            }
+
+            var combo = control as ComboBox;
+            if (combo != null)
+            {
+                combo.SelectionChanged += OnEdited;
+                return;
+            }
+
+            var check = control as CheckBox;
+            if (check != null)
+            {
+                check.Checked += OnEdited;
+                check.Unchecked += OnEdited;
+            }
         }
 
         private void OnNameChanged(object sender, TextChangedEventArgs e)
@@ -219,6 +431,106 @@ namespace EverDefault.App
         private void OnFieldChanged(object sender, TextChangedEventArgs e)
         {
             RefreshAutoName();
+        }
+
+        private void OnEditedText(object sender, TextChangedEventArgs e)
+        {
+            OnEdited(sender, e);
+        }
+
+        private void OnEdited(object sender, EventArgs e)
+        {
+            if (_loading)
+                return;
+
+            MarkDirty();
+            UpdateConditionalVisibility();
+            UpdateSaveState();
+
+            if (_module == RuleModule.DefaultApp)
+            {
+                var needsProtocol = SplitList(ProtocolsBox.Text, true).Count > 0
+                                    && string.IsNullOrWhiteSpace(ProtocolProgIdBox.Text);
+                var needsProgId = SplitList(ExtensionsBox.Text, true).Count > 0
+                                 && string.IsNullOrWhiteSpace(ProgIdBox.Text)
+                                 && _progIdMap.Count == 0;
+                if (needsProtocol || needsProgId)
+                    ProgIdAdvanced.IsExpanded = true;
+            }
+
+            var error = SoftValidation();
+            ValidationText.Text = error ?? string.Empty;
+            ValidationText.Visibility = error == null ? Hidden : Shown;
+        }
+
+        private string SoftValidation()
+        {
+            if (ModeBox.SelectedValue is RuleMode
+                && (RuleMode)ModeBox.SelectedValue == RuleMode.Schedule)
+            {
+                int interval;
+                if (!int.TryParse(IntervalBox.Text, out interval) || interval <= 0)
+                    return "定时轮询秒数需要大于 0。";
+            }
+
+            if (_module == RuleModule.CustomRegistry)
+            {
+                var action = OnMismatchBox.SelectedValue is RuleAction
+                    ? (RuleAction)OnMismatchBox.SelectedValue
+                    : RuleAction.Restore;
+                if (action == RuleAction.WritePolicy && string.IsNullOrWhiteSpace(PolicyKeyBox.Text))
+                    return "选择“写策略”时需要填写“策略键”。";
+            }
+
+            if (_module == RuleModule.NameSpace)
+            {
+                var matchType = NsMatchTypeBox.SelectedValue is NameSpaceMatchType
+                    ? (NameSpaceMatchType)NsMatchTypeBox.SelectedValue
+                    : NameSpaceMatchType.Guid;
+                if (matchType != NameSpaceMatchType.Guid && string.IsNullOrWhiteSpace(NsPatternBox.Text))
+                    return "匹配方式不是 GUID 时，需要填写“匹配内容”。";
+            }
+
+            if (_module == RuleModule.DefaultApp)
+            {
+                if (SplitList(ProtocolsBox.Text, true).Count > 0
+                    && string.IsNullOrWhiteSpace(ProtocolProgIdBox.Text))
+                {
+                    return "已填写 URL 协议，请同时填写“协议 ProgId”。";
+                }
+
+                if (SplitList(ExtensionsBox.Text, true).Count > 0
+                    && string.IsNullOrWhiteSpace(ProgIdBox.Text)
+                    && _progIdMap.Count == 0)
+                {
+                    return "请填写 ProgId，或使用“更多 → 按分组设置…”自动生成。";
+                }
+            }
+
+            return null;
+        }
+
+        private void UpdateSaveState()
+        {
+            SaveButton.IsEnabled = _serviceAvailable && SoftValidation() == null;
+        }
+
+        private void MarkDirty()
+        {
+            if (_dirty)
+                return;
+
+            _dirty = true;
+            DirtyText.Visibility = Shown;
+        }
+
+        private void MarkClean()
+        {
+            _dirty = false;
+            DirtyText.Visibility = Hidden;
+            ValidationText.Text = string.Empty;
+            ValidationText.Visibility = Hidden;
+            UpdateSaveState();
         }
 
         private string ComputeSuggestion()
@@ -260,6 +572,51 @@ namespace EverDefault.App
             _suppressName = false;
         }
 
+        private void UpdateConditionalVisibility()
+        {
+            var mode = ModeBox.SelectedValue is RuleMode ? (RuleMode)ModeBox.SelectedValue : RuleMode.Monitor;
+            IntervalRow.Visibility = mode == RuleMode.Schedule ? Shown : Hidden;
+            IntervalHint.Visibility = mode == RuleMode.Schedule ? Shown : Hidden;
+
+            var custom = _module == RuleModule.CustomRegistry;
+            ActionRow.Visibility = custom ? Hidden : Shown;
+            OnMismatchRow.Visibility = custom ? Shown : Hidden;
+
+            var action = OnMismatchBox.SelectedValue is RuleAction
+                ? (RuleAction)OnMismatchBox.SelectedValue
+                : RuleAction.Restore;
+            PolicyKeyRow.Visibility = custom && action == RuleAction.WritePolicy ? Shown : Hidden;
+
+            var matchType = NsMatchTypeBox.SelectedValue is NameSpaceMatchType
+                ? (NameSpaceMatchType)NsMatchTypeBox.SelectedValue
+                : NameSpaceMatchType.Guid;
+            NsPatternRow.Visibility = _module == RuleModule.NameSpace && matchType != NameSpaceMatchType.Guid
+                ? Shown
+                : Hidden;
+        }
+
+        private void UpdateKind()
+        {
+            var module = Display.Module(_module);
+            EditorKindText.Text = _isNew
+                ? "新建" + module + "规则"
+                : _editingId.HasValue ? "编辑" + module + "规则" : "未选择规则";
+        }
+
+        private void UpdateEmptyState()
+        {
+            var showForm = !_inlineMode || _isNew || _editingId.HasValue;
+            FormScroll.Visibility = showForm ? Shown : Hidden;
+            EmptyState.Visibility = showForm ? Hidden : Shown;
+            UpdateFooterVisibility();
+        }
+
+        private void UpdateFooterVisibility()
+        {
+            var showForm = !_inlineMode || _isNew || _editingId.HasValue;
+            FooterPanel.Visibility = _embedded || !showForm ? Hidden : Shown;
+        }
+
         public RuleBase BuildRule(out string error)
         {
             error = null;
@@ -285,6 +642,9 @@ namespace EverDefault.App
                 rule.Mode = ModeBox.SelectedValue is RuleMode ? (RuleMode)ModeBox.SelectedValue : RuleMode.Monitor;
                 rule.Action = ActionBox.SelectedValue is RuleAction ? (RuleAction)ActionBox.SelectedValue : RuleAction.LogOnly;
                 rule.Enabled = EnabledBox.IsChecked == true;
+
+                if (rule is CustomRegistryRule && OnMismatchBox.SelectedValue is RuleAction)
+                    rule.Action = (RuleAction)OnMismatchBox.SelectedValue;
 
                 int interval;
                 rule.IntervalSeconds = int.TryParse(IntervalBox.Text, out interval) && interval > 0 ? interval : 60;
@@ -345,20 +705,20 @@ namespace EverDefault.App
             if (extensions.Count > 0)
             {
                 if (progId == null && progIdMap.Count == 0)
-                    throw new InvalidOperationException("请填写要锁定的默认程序 ProgId（可点“选择...”从注册表选择，或用规则页的“按分组设置…”自动生成）。");
+                    throw new InvalidOperationException("请填写要锁定的默认程序 ProgId（可在“高级：手动指定 ProgId”中填写，或用“更多 → 按分组设置…”自动生成）。");
 
                 if (progId == null)
                 {
                     var missing = extensions.Where(ext => !progIdMap.ContainsKey(ext)).ToList();
                     if (missing.Count > 0)
                         throw new InvalidOperationException(
-                            "以下扩展名没有对应的 ProgId，请用“按分组设置…”重新生成，或为它们填写统一的 ProgId："
+                            "以下扩展名没有对应的 ProgId，请用“更多 → 按分组设置…”重新生成，或为它们填写统一的 ProgId："
                             + string.Join(", ", missing));
                 }
             }
 
             if (protocols.Count > 0 && protocolProgId == null)
-                throw new InvalidOperationException("已填写 URL 协议，请同时填写“协议 ProgId”（例如 ChromeHTML）。");
+                throw new InvalidOperationException("已填写 URL 协议，请同时填写“协议 ProgId”（在“高级：手动指定 ProgId”中）。");
 
             return new DefaultAppRule
             {
@@ -407,15 +767,13 @@ namespace EverDefault.App
             if (keys.Count == 0)
                 throw new InvalidOperationException("请至少填写一个注册表键（可点“从注册表选择...”）。");
 
-            var onMismatch = (RuleAction)OnMismatchBox.SelectedValue;
-            var action = (RuleAction)ActionBox.SelectedValue;
+            var onMismatch = OnMismatchBox.SelectedValue is RuleAction
+                ? (RuleAction)OnMismatchBox.SelectedValue
+                : RuleAction.Restore;
             var policyKey = Blank(PolicyKeyBox.Text);
 
-            if ((onMismatch == RuleAction.WritePolicy || action == RuleAction.WritePolicy)
-                && string.IsNullOrWhiteSpace(policyKey))
-            {
+            if (onMismatch == RuleAction.WritePolicy && string.IsNullOrWhiteSpace(policyKey))
                 throw new InvalidOperationException("选择“写策略”时需要填写“策略键”。");
-            }
 
             return new CustomRegistryRule
             {

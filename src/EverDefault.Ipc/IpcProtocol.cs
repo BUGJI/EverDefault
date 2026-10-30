@@ -14,11 +14,15 @@ namespace EverDefault.Ipc
         public const string CommandSaveRule = "saveRule";
         public const string CommandDeleteRule = "deleteRule";
         public const string CommandGetLog = "getLog";
+        public const string CommandClearLog = "clearLog";
         public const string CommandGetConflicts = "getConflicts";
         public const string CommandGetSettings = "getSettings";
         public const string CommandSaveSettings = "saveSettings";
         public const string CommandSetMonitoring = "setMonitoring";
         public const string CommandReloadRules = "reloadRules";
+        public const string CommandPauseAll = "pauseAll";
+        public const string CommandResumeAll = "resumeAll";
+        public const string CommandScanNamespaces = "scanNamespaces";
     }
 
     public sealed class IpcRequest
@@ -74,6 +78,30 @@ namespace EverDefault.Ipc
 
         /// <summary>Restore/delete attempts that failed since this engine started.</summary>
         public int FailedCount { get; set; }
+
+        /// <summary>When set and in the future, monitoring is temporarily paused.</summary>
+        public System.DateTime? PauseUntilUtc { get; set; }
+    }
+
+    /// <summary>One "This PC" / Desktop namespace item discovered by the service.</summary>
+    public sealed class NameSpaceScanEntry
+    {
+        public string Guid { get; set; }
+
+        public string DisplayName { get; set; }
+
+        public string TargetPath { get; set; }
+
+        public string NameSpaceKeyPath { get; set; }
+
+        public string ClsidKeyPath { get; set; }
+
+        public string Location { get; set; }
+    }
+
+    public sealed class NameSpaceScanResult
+    {
+        public List<NameSpaceScanEntry> Entries { get; set; } = new List<NameSpaceScanEntry>();
     }
 
     /// <summary>How the engine that answered the request is being hosted.</summary>

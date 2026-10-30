@@ -34,6 +34,8 @@ namespace EverDefault.Core.Storage
         IReadOnlyList<ChangeLogEntry> Query(int max = 500, Guid? ruleId = null);
 
         void Trim(int keep);
+
+        void Clear();
     }
 
     public interface ISettingsStore

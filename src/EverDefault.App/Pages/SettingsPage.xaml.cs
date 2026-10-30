@@ -1,4 +1,7 @@
 using System;
+using System.Diagnostics;
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using EverDefault.Core.Model;
@@ -14,7 +17,10 @@ namespace EverDefault.App
         private bool _installed;
         private bool _installedKnown;
         private bool _serviceRunning;
+        private bool _dirty;
+        private bool _suppressDirty;
         private ServiceHostMode _hostMode;
+        private AppSettings _current;
 
         public SettingsPage(IAppHost host)
         {
@@ -29,12 +35,31 @@ namespace EverDefault.App
             StartupBox.Checked += (s, e) => HideToTrayBox.IsEnabled = true;
             StartupBox.Unchecked += (s, e) => HideToTrayBox.IsEnabled = false;
 
+            MonitoringBox.Checked += OnSettingChanged;
+            MonitoringBox.Unchecked += OnSettingChanged;
+            StartupBox.Checked += OnSettingChanged;
+            StartupBox.Unchecked += OnSettingChanged;
+            HideToTrayBox.Checked += OnSettingChanged;
+            HideToTrayBox.Unchecked += OnSettingChanged;
+            NotificationsBox.Checked += OnSettingChanged;
+            NotificationsBox.Unchecked += OnSettingChanged;
+            AdvancedModeBox.Checked += OnSettingChanged;
+            AdvancedModeBox.Unchecked += OnSettingChanged;
+            CheckUpdatesBox.Checked += OnSettingChanged;
+            CheckUpdatesBox.Unchecked += OnSettingChanged;
+            ThemeBox.SelectionChanged += OnSettingChanged;
+            UpdateIntervalBox.SelectionChanged += OnSettingChanged;
+            OsBox.SelectionChanged += OnSettingChanged;
+            UserScopeBox.SelectionChanged += OnSettingChanged;
+            RetentionBox.TextChanged += OnSettingChanged;
+
+            CurrentVersionText.Text = "当前版本 " + UpdateChecker.CurrentVersion();
             SaveButton.IsEnabled = false;
         }
 
         public void OnActivated()
         {
-            RefreshModeSection(forceCheck: true);
+            _ = RefreshModeSectionAsync(forceCheck: true);
 
             if (!_loaded)
                 LoadAsync();
@@ -48,9 +73,17 @@ namespace EverDefault.App
 
             UpdateModeText();
 
+            OfflineBanner.Visibility = _serviceRunning
+                ? Visibility.Collapsed
+                : Visibility.Visible;
+            OfflineText.Text = snapshot.ServiceStarting
+                ? "正在启动后台保护，请稍候…"
+                : "后台保护未运行，无法读取或保存设置。";
+            ClearLogButton.IsEnabled = _serviceRunning;
+
             if (!snapshot.ServiceRunning)
             {
-                Hint.Text = "后台服务未运行，无法读取或保存设置。请到“主页”启动服务。";
+                Hint.Text = "后台服务未运行，无法读取或保存设置。";
                 SaveButton.IsEnabled = false;
                 return;
             }
@@ -62,6 +95,22 @@ namespace EverDefault.App
                 LoadAsync();
         }
 
+        private void OnStartService(object sender, RoutedEventArgs e)
+        {
+            ServiceConnector.TryStart(_host);
+        }
+
+        private async Task RefreshModeSectionAsync(bool forceCheck = false)
+        {
+            if (forceCheck || !_installedKnown)
+            {
+                _installed = await Task.Run(() => ServiceControl.IsInstalled());
+                _installedKnown = true;
+            }
+
+            UpdateModeButtons();
+        }
+
         private void RefreshModeSection(bool forceCheck = false)
         {
             if (forceCheck || !_installedKnown)
@@ -70,10 +119,31 @@ namespace EverDefault.App
                 _installedKnown = true;
             }
 
+            UpdateModeButtons();
+        }
+
+        private void UpdateModeButtons()
+        {
             InstallServiceButton.IsEnabled = !_installed;
             RestartServiceButton.IsEnabled = true;
             UninstallServiceButton.IsEnabled = _installed;
             UpdateModeText();
+        }
+
+        private void OnSettingChanged(object sender, RoutedEventArgs e)
+        {
+            MarkDirty();
+        }
+
+        private void MarkDirty()
+        {
+            if (_suppressDirty || !_loaded)
+                return;
+
+            _dirty = true;
+            DirtyText.Visibility = Visibility.Visible;
+            if (_serviceRunning)
+                SaveButton.IsEnabled = true;
         }
 
         private void UpdateModeText()
@@ -105,7 +175,7 @@ namespace EverDefault.App
             }
             else
             {
-                ModeActionStatus.Text = "未找到 install-service.cmd，或已取消授权。";
+                ModeActionStatus.Text = ServiceControl.LastError ?? "未能启动安装程序。";
             }
         }
 
@@ -115,13 +185,13 @@ namespace EverDefault.App
             {
                 ModeActionStatus.Text = ServiceControl.RestartInstalled()
                     ? "已请求重启服务（需要管理员权限）。"
-                    : "重启被取消或失败。";
+                    : (ServiceControl.LastError ?? "重启被取消或失败。");
             }
             else
             {
                 ModeActionStatus.Text = ServiceControl.RestartTemporary()
                     ? "已重启用户模式服务。"
-                    : "未找到 EverDefault.Service.exe（应与本程序在同一目录）。";
+                    : (ServiceControl.LastError ?? "未能重启用户模式服务。");
                 ScheduleReconnect();
             }
 
@@ -154,7 +224,7 @@ namespace EverDefault.App
             }
             else
             {
-                ModeActionStatus.Text = "未找到 uninstall-service.cmd，或已取消授权。";
+                ModeActionStatus.Text = ServiceControl.LastError ?? "未能卸载服务。";
             }
         }
 
@@ -229,36 +299,53 @@ namespace EverDefault.App
 
         private void ApplyToUi(AppSettings settings)
         {
-            MonitoringBox.IsChecked = settings.MonitoringEnabled;
-            StartupBox.IsChecked = settings.RunAtStartup;
-            HideToTrayBox.IsChecked = settings.HideToTrayOnStartup;
-            HideToTrayBox.IsEnabled = settings.RunAtStartup;
-            ThemeBox.SelectedValue = settings.Theme;
-            OsBox.SelectedValue = settings.OsOverride;
-            RetentionBox.Text = settings.LogRetentionDays.ToString();
-            UserScopeBox.SelectedValue = settings.TargetUserScope;
-            CheckUpdatesBox.IsChecked = settings.CheckForUpdates;
-            UpdateIntervalBox.SelectedValue = settings.UpdateCheckInterval;
+            _suppressDirty = true;
+            try
+            {
+                _current = settings;
+                MonitoringBox.IsChecked = settings.MonitoringEnabled;
+                StartupBox.IsChecked = settings.RunAtStartup;
+                HideToTrayBox.IsChecked = settings.HideToTrayOnStartup;
+                HideToTrayBox.IsEnabled = settings.RunAtStartup;
+                NotificationsBox.IsChecked = settings.ShowNotifications;
+                AdvancedModeBox.IsChecked = settings.AdvancedMode;
+                ThemeBox.SelectedValue = settings.Theme;
+                OsBox.SelectedValue = settings.OsOverride;
+                RetentionBox.Text = settings.LogRetentionDays.ToString();
+                UserScopeBox.SelectedValue = settings.TargetUserScope;
+                CheckUpdatesBox.IsChecked = settings.CheckForUpdates;
+                UpdateIntervalBox.SelectedValue = settings.UpdateCheckInterval;
+            }
+            finally
+            {
+                _suppressDirty = false;
+            }
+
+            _dirty = false;
+            DirtyText.Visibility = Visibility.Collapsed;
         }
 
         private async void OnSave(object sender, RoutedEventArgs e)
         {
             int retention;
             if (!int.TryParse(RetentionBox.Text, out retention) || retention <= 0)
-                retention = 30;
-
-            var settings = new AppSettings
             {
-                MonitoringEnabled = MonitoringBox.IsChecked == true,
-                RunAtStartup = StartupBox.IsChecked == true,
-                HideToTrayOnStartup = HideToTrayBox.IsChecked == true,
-                Theme = (ThemeMode)ThemeBox.SelectedValue,
-                OsOverride = (OsFamily)OsBox.SelectedValue,
-                LogRetentionDays = retention,
-                TargetUserScope = (UserScopeMode)UserScopeBox.SelectedValue,
-                CheckForUpdates = CheckUpdatesBox.IsChecked == true,
-                UpdateCheckInterval = (UpdateInterval)UpdateIntervalBox.SelectedValue
-            };
+                StatusText.Text = "日志保留天数必须是大于 0 的整数。";
+                return;
+            }
+
+            var settings = _current ?? new AppSettings();
+            settings.MonitoringEnabled = MonitoringBox.IsChecked == true;
+            settings.RunAtStartup = StartupBox.IsChecked == true;
+            settings.HideToTrayOnStartup = HideToTrayBox.IsChecked == true;
+            settings.ShowNotifications = NotificationsBox.IsChecked == true;
+            settings.AdvancedMode = AdvancedModeBox.IsChecked == true;
+            settings.Theme = (ThemeMode)ThemeBox.SelectedValue;
+            settings.OsOverride = (OsFamily)OsBox.SelectedValue;
+            settings.LogRetentionDays = retention;
+            settings.TargetUserScope = (UserScopeMode)UserScopeBox.SelectedValue;
+            settings.CheckForUpdates = CheckUpdatesBox.IsChecked == true;
+            settings.UpdateCheckInterval = (UpdateInterval)UpdateIntervalBox.SelectedValue;
 
             var response = await _host.SendAsync(IpcProtocol.CommandSaveSettings, settings);
             if (!response.Success)
@@ -268,13 +355,90 @@ namespace EverDefault.App
             }
 
             StatusText.Text = "已保存设置。";
+            _dirty = false;
+            DirtyText.Visibility = Visibility.Collapsed;
             _host.ApplyUserSettings(settings);
             _host.Refresh();
         }
 
         private void OnReload(object sender, RoutedEventArgs e)
         {
+            if (_dirty && !_host.Confirm("放弃当前未保存的修改并重新载入？"))
+                return;
             LoadAsync();
+        }
+
+        private async void OnCheckUpdates(object sender, RoutedEventArgs e)
+        {
+            CheckNowButton.IsEnabled = false;
+            UpdateStatusText.Text = "正在检查...";
+
+            try
+            {
+                var info = await UpdateChecker.CheckAsync();
+                if (info != null && info.Available)
+                {
+                    UpdateStatusText.Text = "发现新版本 " + info.LatestTag;
+                    if (_host.Confirm("发现新版本 " + info.LatestTag + "（当前 "
+                                      + UpdateChecker.CurrentVersion() + "）。\n\n是否打开发布页面？")
+                        && !string.IsNullOrEmpty(info.ReleaseUrl))
+                    {
+                        Process.Start(info.ReleaseUrl);
+                    }
+                }
+                else
+                {
+                    UpdateStatusText.Text = "已是最新版本（" + UpdateChecker.CurrentVersion() + "）。";
+                }
+            }
+            catch (Exception ex)
+            {
+                UpdateStatusText.Text = "检查失败：" + ex.Message;
+            }
+            finally
+            {
+                CheckNowButton.IsEnabled = true;
+            }
+        }
+
+        private void OnBackup(object sender, RoutedEventArgs e)
+        {
+            _host.ExportBackup();
+        }
+
+        private void OnRestore(object sender, RoutedEventArgs e)
+        {
+            _host.ImportBackup();
+        }
+
+        private void OnOpenDataFolder(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                var path = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData),
+                    "EverDefault");
+                Directory.CreateDirectory(path);
+                Process.Start("explorer.exe", path);
+            }
+            catch (Exception ex)
+            {
+                StatusText.Text = "无法打开数据目录：" + ex.Message;
+            }
+        }
+
+        private async void OnClearLog(object sender, RoutedEventArgs e)
+        {
+            if (!_host.Confirm("清空全部活动记录？\n这不会影响正在生效的保护规则。"))
+                return;
+
+            var response = await _host.SendAsync(IpcProtocol.CommandClearLog);
+            StatusText.Text = response.Success
+                ? "已清空活动记录。"
+                : "清空失败：" + response.Error;
+
+            if (response.Success)
+                _host.Refresh();
         }
     }
 }

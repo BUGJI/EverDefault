@@ -238,25 +238,17 @@ namespace EverDefault.App
                 return;
             }
 
-            var saved = 0;
-            var errors = new List<string>();
-            foreach (var rule in rules)
-            {
-                var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                if (response.Success)
-                    saved++;
-                else
-                    errors.Add(rule.Name + ": " + response.Error);
-            }
+            var payload = rules.Select(RuleCodec.Serialize).ToList();
+            var saveResponse = await _host.SendAsync(IpcProtocol.CommandSaveRulesAndRun, payload);
 
             _settings.OnboardingCompleted = true;
             Completed = true;
             await _host.SendAsync(IpcProtocol.CommandSaveSettings, _settings);
             _host.ApplyUserSettings(_settings);
 
-            if (errors.Count > 0)
+            if (!saveResponse.Success)
             {
-                SetStatus("已保存 " + saved + " 项，另有 " + errors.Count + " 项失败。", true);
+                SetStatus("保存失败：" + saveResponse.Error, true);
                 StartButton.IsEnabled = true;
                 return;
             }

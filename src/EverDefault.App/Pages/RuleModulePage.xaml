@@ -62,13 +62,20 @@
                     </Grid.ColumnDefinitions>
 
                     <Grid>
-                        <TextBox x:Name="SearchBox" Padding="6,4" TextChanged="OnSearchChanged"
+                        <TextBox x:Name="SearchBox" Padding="6,4,26,4" TextChanged="OnSearchChanged"
                                  AutomationProperties.Name="搜索规则"
                                  ToolTip="按名称、目标或摘要搜索当前分类的规则。" />
                         <TextBlock x:Name="SearchPlaceholder" Text="搜索名称或目标"
                                    Margin="8,0,0,0" VerticalAlignment="Center"
                                    Foreground="{DynamicResource TextMutedBrush}"
                                    IsHitTestVisible="False" />
+                        <Button x:Name="ClearSearchButton" Content="×" Style="{StaticResource SubtleButton}"
+                                Width="22" Height="22" MinHeight="0" Padding="0" FontSize="14"
+                                FontFamily="{StaticResource AppFontFamily}"
+                                HorizontalAlignment="Right" VerticalAlignment="Center"
+                                Margin="0,0,4,0" Visibility="Collapsed"
+                                AutomationProperties.Name="清除搜索" ToolTip="清除搜索"
+                                Click="OnClearSearch" />
                     </Grid>
 
                     <ComboBox x:Name="FilterBox" Grid.Column="1" Width="92" Margin="6,0,0,0"
@@ -124,6 +131,10 @@
                                 MinWidth="64" Style="{StaticResource DangerButton}"
                                 Click="OnDelete" AutomationProperties.Name="删除规则"
                                 ToolTip="删除当前选中的规则。" />
+                        <Button x:Name="RunRuleButton" DockPanel.Dock="Right" Content="立即执行"
+                                MinWidth="80" Margin="0,0,8,0" Style="{StaticResource SubtleButton}"
+                                Click="OnRunSelected" AutomationProperties.Name="立即执行当前规则"
+                                ToolTip="立即执行并修复当前选中的规则，手动模式也会执行。" />
                         <TextBlock x:Name="CountText" VerticalAlignment="Center"
                                    Style="{StaticResource HintText}" />
                     </DockPanel>

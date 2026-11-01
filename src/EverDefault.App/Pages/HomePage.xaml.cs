@@ -15,6 +15,8 @@ namespace EverDefault.App
         private readonly IAppHost _host;
         private RefreshSnapshot _snapshot;
         private AppSettings _settings;
+        private List<RuleRow> _lastRules;
+        private List<ActivityItem> _lastLogs;
 
         public HomePage(IAppHost host)
         {
@@ -28,6 +30,8 @@ namespace EverDefault.App
 
             if (!snapshot.ServiceRunning)
             {
+                _lastRules = null;
+                _lastLogs = null;
                 if (snapshot.ServiceStarting)
                 {
                     StatusTitle.Text = "正在启动后台保护…";
@@ -45,6 +49,7 @@ namespace EverDefault.App
 
                 PauseButton.IsEnabled = false;
                 PauseButton.Content = "暂停 1 小时";
+                RunNowButton.IsEnabled = false;
                 ModeLabel.Text = "未连接";
                 ObservedText.Text = "0";
                 BlockedText.Text = "0";
@@ -91,6 +96,7 @@ namespace EverDefault.App
             PauseButton.Content = paused
                 ? "立即恢复"
                 : monitoring ? "暂停 1 小时" : "恢复保护";
+            RunNowButton.IsEnabled = monitoring;
             ReconnectButton.Visibility = Visibility.Collapsed;
 
             ModeLabel.Text = status.HostMode == ServiceHostMode.Service ? "服务模式" : "用户模式";
@@ -103,13 +109,24 @@ namespace EverDefault.App
             ConflictCard.Visibility = conflicts.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
             ConflictText.Text = "有 " + conflicts.Count + " 组保护设置互相冲突，这些规则暂时不会生效。";
 
-            UpdateRecommendations(snapshot.Rules == null
-                ? new List<RuleBase>()
-                : snapshot.Rules.Select(r => r.Rule).ToList());
+            if (snapshot.Rules != null && !ReferenceEquals(snapshot.Rules, _lastRules))
+            {
+                _lastRules = snapshot.Rules;
+                UpdateRecommendations(snapshot.Rules.Select(r => r.Rule).ToList());
+            }
+            else if (snapshot.Rules == null && _lastRules == null)
+            {
+                UpdateRecommendations(new List<RuleBase>());
+            }
 
-            var recent = (snapshot.Logs ?? new List<ActivityItem>()).Take(4).ToList();
-            RecentList.ItemsSource = recent;
-            RecentEmpty.Visibility = recent.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            if ((snapshot.Logs != null && !ReferenceEquals(snapshot.Logs, _lastLogs))
+                || RecentList.ItemsSource == null)
+            {
+                _lastLogs = snapshot.Logs;
+                var recent = (snapshot.Logs ?? new List<ActivityItem>()).Take(4).ToList();
+                RecentList.ItemsSource = recent;
+                RecentEmpty.Visibility = recent.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
 
         public void ApplySettings(AppSettings settings)
@@ -152,6 +169,65 @@ namespace EverDefault.App
 
             if (!response.Success)
                 _host.ShowWarning("操作失败：" + response.Error);
+
+            _host.Refresh();
+        }
+
+        private async void OnPauseFor(object sender, RoutedEventArgs e)
+        {
+            if (_snapshot == null || !_snapshot.ServiceRunning || _snapshot.Status == null)
+                return;
+
+            var menu = sender as MenuItem;
+            int minutes;
+            if (menu == null || !int.TryParse(menu.Tag as string, out minutes))
+                minutes = 60;
+
+            if (minutes > 0 && !_snapshot.Status.MonitoringEnabled)
+                await _host.SendAsync(IpcProtocol.CommandSetMonitoring, true.ToString());
+
+            var response = minutes > 0
+                ? await _host.SendAsync(IpcProtocol.CommandPauseAll, minutes)
+                : await _host.SendAsync(IpcProtocol.CommandResumeAll);
+
+            if (!response.Success)
+                _host.ShowWarning("操作失败：" + response.Error);
+
+            _host.Refresh();
+        }
+
+        private async void OnRunNow(object sender, RoutedEventArgs e)
+        {
+            if (_snapshot == null || !_snapshot.ServiceRunning)
+                return;
+
+            var rules = _snapshot.Rules == null
+                ? new List<RuleBase>()
+                : _snapshot.Rules.Select(r => r.Rule).Where(r => r.Enabled).ToList();
+
+            if (rules.Any(RuleApply.IsDestructive) && !_host.Confirm(
+                "立即应用全部会对所有已启用的保护执行一次写回。\n"
+                + "其中包含会删除注册表项的规则，匹配到的项目将被移除。是否继续？"))
+                return;
+
+            var response = await _host.SendAsync(IpcProtocol.CommandRunAll);
+            if (!response.Success)
+            {
+                _host.ShowWarning("执行失败：" + response.Error);
+                return;
+            }
+
+            var result = PipeJson.Deserialize<RunNowResult>(response.Payload);
+            if (result == null)
+            {
+                _host.Refresh();
+                return;
+            }
+
+            if (result.Started && result.Failed == 0)
+                _host.ShowInfo(result.Message);
+            else
+                _host.ShowWarning(result.Message);
 
             _host.Refresh();
         }
@@ -265,30 +341,24 @@ namespace EverDefault.App
 
         private async System.Threading.Tasks.Task SaveRules(IEnumerable<RuleBase> rules, string message)
         {
-            var saved = 0;
-            var errors = new List<string>();
-            foreach (var rule in rules)
-            {
-                var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                if (response.Success)
-                    saved++;
-                else
-                    errors.Add((rule.Name ?? "保护项") + ": " + response.Error);
-            }
-
+            await RuleApply.SaveAndRunAsync(_host, rules, message);
             _host.Refresh();
-
-            if (errors.Count > 0)
-                _host.ShowWarning("保存完成：成功 " + saved + " 项，失败 " + errors.Count + " 项。\n"
-                    + string.Join("\n", errors.Take(5)));
-            else
-                _host.ShowInfo(message);
         }
 
         private void UpdateRecommendations(IList<RuleBase> rules)
         {
-            BrowserStateText.Text = DescribeAssociation(rules, "http", AssociationKind.UrlProtocol);
-            DocsStateText.Text = DescribeAssociation(rules, ".pdf", AssociationKind.FileExtension);
+            var browserCovered = AreTargetsCovered(
+                rules, new[] { "http", "https", "mailto" }, true);
+            var docsCovered = AreTargetsCovered(
+                rules, new[] { ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx" }, false);
+
+            BrowserStateText.Text = DescribeAssociation(rules, "http", AssociationKind.UrlProtocol,
+                browserCovered);
+            DocsStateText.Text = DescribeAssociation(rules, ".pdf", AssociationKind.FileExtension,
+                docsCovered);
+
+            SetRecommendationButton(BrowserButton, browserCovered, "保护浏览器和邮件");
+            SetRecommendationButton(DocsButton, docsCovered, "保护文档");
 
             NameSpaceStateText.Text = rules.Any(r => r.Module == RuleModule.NameSpace)
                 ? "已添加此电脑保护"
@@ -299,14 +369,44 @@ namespace EverDefault.App
                 : "尚未添加";
         }
 
+        private static void SetRecommendationButton(Button button, bool covered, string text)
+        {
+            if (button == null)
+                return;
+
+            button.Content = covered ? "已保护" : text;
+            button.IsEnabled = !covered;
+            button.ToolTip = covered ? "已经保护中，可到「我的保护」里调整。" : null;
+        }
+
+        private static bool AreTargetsCovered(
+            IEnumerable<RuleBase> rules, IEnumerable<string> targets, bool protocol)
+        {
+            var any = false;
+            foreach (var target in targets)
+            {
+                var entry = AssociationCatalog.Resolve(
+                    target,
+                    protocol ? AssociationKind.UrlProtocol : AssociationKind.FileExtension);
+                if (entry == null || string.IsNullOrWhiteSpace(entry.AppName))
+                    continue;
+
+                any = true;
+                if (!ProtectionBuilder.IsCovered(rules, entry))
+                    return false;
+            }
+
+            return any;
+        }
+
         private static string DescribeAssociation(
-            IEnumerable<RuleBase> rules, string target, AssociationKind kind)
+            IEnumerable<RuleBase> rules, string target, AssociationKind kind, bool covered)
         {
             var entry = AssociationCatalog.Resolve(target, kind);
             if (entry == null || string.IsNullOrWhiteSpace(entry.AppName))
                 return "尚未设置默认程序";
 
-            return ProtectionBuilder.IsCovered(rules, entry)
+            return covered
                 ? "当前：" + entry.AppName + " · 已保护"
                 : "当前：" + entry.AppName;
         }
@@ -316,7 +416,7 @@ namespace EverDefault.App
             _host.ShowActivity("all");
         }
 
-        private void OnStatClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private void OnStatClick(object sender, RoutedEventArgs e)
         {
             var element = sender as FrameworkElement;
             var tag = element == null ? null : element.Tag as string;

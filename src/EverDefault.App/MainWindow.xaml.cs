@@ -7,6 +7,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Threading;
 using EverDefault.Core.Engine;
@@ -21,14 +22,17 @@ namespace EverDefault.App
         private readonly PipeClient _client = new PipeClient();
         private readonly DispatcherTimer _timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(3) };
         private readonly Dictionary<string, UIElement> _pages = new Dictionary<string, UIElement>();
-        private readonly List<IAppPage> _appPages = new List<IAppPage>();
         private readonly SettingsPage _settingsPage;
         private readonly ActivityPage _activityPage;
+        private readonly ProtectionPage _protectionPage;
         private readonly HomePage _homePage;
         private readonly NotificationCenter _notifications = new NotificationCenter();
         private readonly DateTime _startedUtc = DateTime.UtcNow;
         private readonly Queue<ToastMessage> _toasts = new Queue<ToastMessage>();
         private readonly DispatcherTimer _toastTimer = new DispatcherTimer();
+        private ToastMessage _currentToast;
+
+        private const int LogPageSize = 500;
 
         private bool _refreshing;
         private bool _serviceRunning;
@@ -40,6 +44,18 @@ namespace EverDefault.App
         private RefreshSnapshot _lastSnapshot;
         private AppSettings _lastSettings;
 
+        private List<RuleRow> _cachedRules;
+        private List<string> _cachedConflicts;
+        private List<Guid> _cachedConflictingIds;
+        private List<ChangeLogEntry> _cachedLogEntries;
+        private List<ActivityItem> _cachedLogs;
+        private readonly Dictionary<long, ActivityItem> _activityCache =
+            new Dictionary<long, ActivityItem>();
+        private int _cachedRulesRevision = -1;
+        private long _cachedLogLastId = -1;
+        private DateTime _cachedStartedUtc = DateTime.MinValue;
+        private bool _snapshotLoaded;
+
         public MainWindow()
         {
             InitializeComponent();
@@ -47,7 +63,7 @@ namespace EverDefault.App
             WindowPlacement.Restore(this);
 
             _homePage = new HomePage(this);
-            var protection = new ProtectionPage(this);
+            _protectionPage = new ProtectionPage(this);
             _activityPage = new ActivityPage(this);
             var defaultApp = new RuleModulePage(this, RuleModule.DefaultApp);
             var nameSpace = new RuleModulePage(this, RuleModule.NameSpace);
@@ -56,7 +72,7 @@ namespace EverDefault.App
             var about = new AboutPage();
 
             AddPage("home", _homePage);
-            AddPage("protection", protection);
+            AddPage("protection", _protectionPage);
             AddPage("activity", _activityPage);
             AddPage("rule:DefaultApp", defaultApp);
             AddPage("rule:NameSpace", nameSpace);
@@ -78,6 +94,12 @@ namespace EverDefault.App
             _toastTimer.Tick += (sender, args) => HideToast();
             _toastTimer.Stop();
 
+            IsVisibleChanged += (sender, args) =>
+            {
+                if (IsVisible)
+                    ApplyToCurrentPage(_lastSnapshot);
+            };
+
             NavHome.IsChecked = true;
         }
 
@@ -94,10 +116,6 @@ namespace EverDefault.App
 
         private void AddPage(string key, UIElement page)
         {
-            var appPage = page as IAppPage;
-            if (appPage != null)
-                _appPages.Add(appPage);
-
             page.Visibility = Visibility.Collapsed;
             _pages[key] = page;
             PageHost.Children.Add(page);
@@ -143,7 +161,12 @@ namespace EverDefault.App
             MaximizeButton.ToolTip = maximized ? "还原" : "最大化";
             System.Windows.Automation.AutomationProperties.SetName(
                 MaximizeButton, maximized ? "还原" : "最大化");
+
+            if (WindowState != WindowState.Minimized && IsVisible)
+                ApplyToCurrentPage(_lastSnapshot);
         }
+
+
 
         public void Navigate(string pageKey)
         {
@@ -182,8 +205,28 @@ namespace EverDefault.App
 
             _currentPageKey = key;
 
+            var appPage = _pages[key] as IAppPage;
+            if (appPage != null && _lastSnapshot != null)
+                appPage.ApplySnapshot(_lastSnapshot);
+
             if (key == "settings")
                 _settingsPage.OnActivated();
+        }
+
+        private IAppPage CurrentPage()
+        {
+            UIElement page;
+            return _pages.TryGetValue(_currentPageKey, out page) ? page as IAppPage : null;
+        }
+
+        private void ApplyToCurrentPage(RefreshSnapshot snapshot)
+        {
+            if (snapshot == null)
+                return;
+
+            var page = CurrentPage();
+            if (page != null)
+                page.ApplySnapshot(snapshot);
         }
 
         public async void Refresh()
@@ -217,30 +260,160 @@ namespace EverDefault.App
             if (!statusResponse.Success)
                 return snapshot;
 
-            snapshot.Status = PipeJson.Deserialize<ServiceStatus>(statusResponse.Payload);
+            var status = PipeJson.Deserialize<ServiceStatus>(statusResponse.Payload);
+            snapshot.Status = status;
+            if (status == null)
+                return snapshot;
 
-            var rulesResponse = _client.Send(IpcProtocol.CommandGetRules);
-            if (rulesResponse.Success)
+            var serviceRestarted = !_snapshotLoaded || status.StartedUtc != _cachedStartedUtc;
+
+            // Older engines do not report revisions; fall back to fetching every poll.
+            var revisioned = status.RulesRevision != 0 || status.LogLastId != 0;
+
+            if (!revisioned || serviceRestarted || status.RulesRevision != _cachedRulesRevision)
             {
-                var result = RuleCodec.DeserializeObject<RuleListResult>(rulesResponse.Payload);
-                snapshot.Rules = result.Rules.Select(r => new RuleRow(r)).ToList();
-                snapshot.Conflicts = result.Conflicts;
-                snapshot.ConflictingRuleIds = result.ConflictingRuleIds;
+                var rulesResponse = _client.Send(IpcProtocol.CommandGetRules);
+                if (rulesResponse.Success)
+                {
+                    var result = RuleCodec.DeserializeObject<RuleListResult>(rulesResponse.Payload);
+                    if (result != null)
+                    {
+                        _cachedRules = result.Rules.Select(r => new RuleRow(r)).ToList();
+                        _cachedConflicts = result.Conflicts ?? new List<string>();
+                        _cachedConflictingIds = result.ConflictingRuleIds ?? new List<Guid>();
+                        _cachedRulesRevision = status.RulesRevision;
+                        _activityCache.Clear();
+                        snapshot.RulesChanged = true;
+                    }
+                }
             }
 
-            var logResponse = _client.Send(IpcProtocol.CommandGetLog, new LogQuery { Max = 500 });
-            if (logResponse.Success)
+            snapshot.Rules = _cachedRules;
+            snapshot.Conflicts = _cachedConflicts;
+            snapshot.ConflictingRuleIds = _cachedConflictingIds;
+
+            var logReset = !revisioned || serviceRestarted || status.LogLastId < _cachedLogLastId;
+            if (logReset)
             {
-                var page = PipeJson.Deserialize<Ipc.LogPage>(logResponse.Payload);
-                var ruleMap = snapshot.Rules != null
-                    ? snapshot.Rules
-                        .GroupBy(r => r.Rule.Id)
-                        .ToDictionary(g => g.Key, g => g.First().Rule)
-                    : new Dictionary<Guid, RuleBase>();
-                snapshot.Logs = ActivityFactory.Build(page.Entries, ruleMap);
+                FetchFullLog(snapshot);
+            }
+            else if (status.LogLastId > _cachedLogLastId)
+            {
+                if (!FetchIncrementalLog())
+                    FetchFullLog(snapshot);
+                else
+                    snapshot.LogsChanged = true;
             }
 
+            // Rule names/targets appear in log text; rebuild when the rules changed. A full
+            // log reset already rebuilt everything with the new rules.
+            if (snapshot.RulesChanged && !logReset && _cachedLogEntries != null)
+            {
+                _activityCache.Clear();
+                var ruleMap = CurrentRuleMap();
+                foreach (var entry in _cachedLogEntries)
+                {
+                    var item = ActivityFactory.BuildItem(entry, ruleMap);
+                    if (item != null)
+                        _activityCache[entry.Id] = item;
+                }
+
+                snapshot.LogsChanged = true;
+            }
+
+            if (snapshot.LogsChanged || _cachedLogs == null)
+            {
+                _cachedLogs = new List<ActivityItem>(_cachedLogEntries == null ? 0 : _cachedLogEntries.Count);
+                if (_cachedLogEntries != null)
+                {
+                    foreach (var entry in _cachedLogEntries)
+                    {
+                        ActivityItem item;
+                        if (_activityCache.TryGetValue(entry.Id, out item))
+                            _cachedLogs.Add(item);
+                    }
+                }
+            }
+
+            snapshot.Logs = _cachedLogs;
+
+            _cachedStartedUtc = status.StartedUtc;
+            _snapshotLoaded = true;
             return snapshot;
+        }
+
+        private void FetchFullLog(RefreshSnapshot snapshot)
+        {
+            var response = _client.Send(IpcProtocol.CommandGetLog, new LogQuery { Max = LogPageSize });
+            if (!response.Success)
+                return;
+
+            var page = PipeJson.Deserialize<LogPage>(response.Payload);
+            var entries = page == null ? new List<ChangeLogEntry>() : page.Entries;
+            _cachedLogEntries = new List<ChangeLogEntry>(entries);
+            _cachedLogLastId = entries.Count > 0
+                ? entries[0].Id
+                : (page == null ? 0 : page.LastId);
+
+            _activityCache.Clear();
+            var ruleMap = CurrentRuleMap();
+            foreach (var entry in _cachedLogEntries)
+            {
+                var item = ActivityFactory.BuildItem(entry, ruleMap);
+                if (item != null)
+                    _activityCache[entry.Id] = item;
+            }
+
+            snapshot.LogsChanged = true;
+        }
+
+        private bool FetchIncrementalLog()
+        {
+            var response = _client.Send(IpcProtocol.CommandGetLog, new LogQuery
+            {
+                AfterId = _cachedLogLastId,
+                Max = LogPageSize
+            });
+            if (!response.Success)
+                return false;
+
+            var page = PipeJson.Deserialize<LogPage>(response.Payload);
+            var entries = page == null ? new List<ChangeLogEntry>() : page.Entries;
+            if (entries.Count == 0)
+                return true;
+
+            if (_cachedLogEntries == null || entries[0].Id > _cachedLogLastId + 1)
+                return false;
+
+            var ruleMap = CurrentRuleMap();
+            for (var i = 0; i < entries.Count; i++)
+            {
+                var entry = entries[i];
+                _cachedLogEntries.Insert(0, entry);
+                var item = ActivityFactory.BuildItem(entry, ruleMap);
+                if (item != null)
+                    _activityCache[entry.Id] = item;
+            }
+
+            while (_cachedLogEntries.Count > LogPageSize)
+            {
+                var removed = _cachedLogEntries[_cachedLogEntries.Count - 1];
+                _cachedLogEntries.RemoveAt(_cachedLogEntries.Count - 1);
+                _activityCache.Remove(removed.Id);
+            }
+
+            _cachedLogLastId = entries[entries.Count - 1].Id;
+            return true;
+        }
+
+        private Dictionary<Guid, RuleBase> CurrentRuleMap()
+        {
+            if (_cachedRules == null)
+                return new Dictionary<Guid, RuleBase>();
+
+            return _cachedRules
+                .GroupBy(r => r.Rule.Id)
+                .ToDictionary(g => g.Key, g => g.First().Rule);
         }
 
         private void ApplySnapshot(RefreshSnapshot snapshot)
@@ -249,6 +422,14 @@ namespace EverDefault.App
             snapshot.ServiceStarting = !snapshot.ServiceRunning
                                        && (DateTime.UtcNow - _startedUtc).TotalSeconds < 10;
             _lastSnapshot = snapshot;
+
+            ServiceBanner.Visibility = snapshot.ServiceRunning ? Visibility.Collapsed : Visibility.Visible;
+            ServiceBannerText.Text = snapshot.ServiceStarting
+                ? "正在启动后台保护，请稍候…"
+                : "后台保护未运行，保护可能没有生效。以下显示的是上次读取到的数据。";
+            ServiceBannerButton.Visibility = snapshot.ServiceStarting
+                ? Visibility.Collapsed
+                : Visibility.Visible;
 
             var protectionPaused = false;
             var trayState = TrayProtectionState.Unavailable;
@@ -288,11 +469,11 @@ namespace EverDefault.App
             if (stateHandler != null)
                 stateHandler(StatusText.Text, trayState);
 
-            foreach (var page in _appPages)
-                page.ApplySnapshot(snapshot);
+            if (IsVisible && WindowState != WindowState.Minimized)
+                ApplyToCurrentPage(snapshot);
 
-            var notifications = _notifications;
-            notifications.Process(snapshot.Logs, _lastSettings);
+            if (snapshot.LogsChanged)
+                _notifications.Process(snapshot.Logs, _lastSettings);
 
             if (snapshot.ServiceRunning && !_settingsLoaded)
             {
@@ -392,17 +573,79 @@ namespace EverDefault.App
                 return;
 
             _onboardingShown = true;
+            ShowWizard(settings);
+        }
 
+        public async void ShowOnboarding()
+        {
+            if (!_serviceRunning)
+            {
+                ShowInfo("请先启动后台保护，再运行首次设置向导。");
+                return;
+            }
+
+            var settings = _lastSettings;
+            if (settings == null)
+            {
+                try
+                {
+                    var response = await SendAsync(IpcProtocol.CommandGetSettings);
+                    if (response.Success)
+                        settings = PipeJson.Deserialize<AppSettings>(response.Payload);
+                }
+                catch (Exception)
+                {
+                    // Reported below; do not fall back to defaults or saving would overwrite settings.
+                }
+            }
+
+            if (settings == null)
+            {
+                ShowWarning("暂时无法读取当前设置，请稍后再试。");
+                return;
+            }
+
+            _onboardingShown = true;
+            ShowWizard(settings);
+        }
+
+        private void ShowWizard(AppSettings settings)
+        {
             var existing = _lastSnapshot == null || _lastSnapshot.Rules == null
                 ? new List<RuleBase>()
                 : _lastSnapshot.Rules.Select(r => r.Rule).ToList();
+
             var window = new FirstRunWindow(this, settings, existing) { Owner = this };
             window.ShowDialog();
+            OnboardingState.MarkCompleted();
 
-            if (window.Completed)
-                OnboardingState.MarkCompleted();
+            if (!settings.OnboardingCompleted)
+            {
+                settings.OnboardingCompleted = true;
+                _ = SaveSettingsSilently(settings);
+            }
 
             Refresh();
+        }
+
+        private async Task SaveSettingsSilently(AppSettings settings)
+        {
+            try
+            {
+                await SendAsync(IpcProtocol.CommandSaveSettings, settings);
+                ApplyUserSettings(settings);
+            }
+            catch (Exception)
+            {
+                // Onboarding state is best-effort; the wizard can be reopened from Settings.
+            }
+        }
+
+        public bool ConfirmExit()
+        {
+            return _settingsPage == null
+                   || !_settingsPage.HasUnsavedChanges
+                   || Confirm("设置页还有未保存的修改，退出后会丢失。\n\n仍要退出吗？");
         }
 
         public void OpenRuleById(Guid? ruleId)
@@ -446,6 +689,24 @@ namespace EverDefault.App
             Refresh();
         }
 
+        public async void PauseFor(int minutes)
+        {
+            if (_lastSnapshot == null || _lastSnapshot.Status == null)
+                return;
+
+            if (minutes > 0 && !_lastSnapshot.Status.MonitoringEnabled)
+                await SendAsync(IpcProtocol.CommandSetMonitoring, true.ToString());
+
+            var response = minutes > 0
+                ? await SendAsync(IpcProtocol.CommandPauseAll, minutes)
+                : await SendAsync(IpcProtocol.CommandResumeAll);
+
+            if (!response.Success)
+                ShowWarning("操作失败：" + response.Error);
+
+            Refresh();
+        }
+
         private void SaveRules(IEnumerable<RuleBase> rules)
         {
             _ = SaveRulesAsync(rules);
@@ -453,16 +714,13 @@ namespace EverDefault.App
 
         private async Task SaveRulesAsync(IEnumerable<RuleBase> rules)
         {
-            foreach (var rule in rules)
-            {
-                var response = await SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                if (!response.Success)
-                {
-                    ShowWarning("保存失败：" + response.Error);
-                    return;
-                }
-            }
+            var list = (rules ?? Enumerable.Empty<RuleBase>())
+                .Where(r => r != null)
+                .ToList();
+            if (list.Count == 0)
+                return;
 
+            await RuleApply.SaveAndRunAsync(this, list);
             Refresh();
         }
 
@@ -497,6 +755,43 @@ namespace EverDefault.App
         private void OnRefresh(object sender, RoutedEventArgs e)
         {
             Refresh();
+        }
+
+        private void OnStartServiceFromBanner(object sender, RoutedEventArgs e)
+        {
+            ServiceConnector.TryStart(this);
+        }
+
+        private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+        {
+            if (e.Key == Key.F5)
+            {
+                Refresh();
+                e.Handled = true;
+                return;
+            }
+
+            if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                if (_currentPageKey == "activity")
+                {
+                    _activityPage.FocusSearch();
+                }
+                else if (_currentPageKey.StartsWith("rule:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var rulePage = _pages[_currentPageKey] as RuleModulePage;
+                    if (rulePage != null)
+                        rulePage.FocusSearch();
+                }
+                else
+                {
+                    if (_currentPageKey != "protection")
+                        Navigate("protection");
+                    _protectionPage.FocusSearch();
+                }
+
+                e.Handled = true;
+            }
         }
 
         public void ShowActivity(string filter)
@@ -615,6 +910,7 @@ namespace EverDefault.App
 
             var succeeded = 0;
             var errors = new List<string>();
+            var rules = new List<RuleBase>();
 
             foreach (var dto in document.Rules)
             {
@@ -626,16 +922,31 @@ namespace EverDefault.App
                     continue;
                 }
 
-                var response = await SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                if (response.Success)
-                    succeeded++;
+                rules.Add(rule);
+            }
+
+            SaveApplyOutcome outcome = null;
+            if (rules.Count > 0)
+            {
+                outcome = await RuleApply.SaveAndRunAsync(
+                    this, rules, showMessages: false);
+                if (outcome.Saved)
+                    succeeded = rules.Count;
                 else
-                    errors.Add((dto.Name ?? "?") + ": " + response.Error);
+                    errors.Add("批量导入失败: " + outcome.Error);
             }
 
             Refresh();
 
             var message = "导入完成：成功 " + succeeded + " 条";
+            if (outcome != null && outcome.Saved)
+            {
+                if (outcome.Declined)
+                    message += "\n删除类保护已导入，但未立即应用。";
+                else if (outcome.Result != null)
+                    message += "\n" + outcome.Result.Message;
+            }
+
             if (errors.Count > 0)
                 message += "，失败 " + errors.Count + " 条：\n" + string.Join("\n", errors.Take(8));
 
@@ -680,6 +991,7 @@ namespace EverDefault.App
             }
 
             var message = _toasts.Dequeue();
+            _currentToast = message;
             ToastText.Text = message.Text;
             ToastBanner.Background = TryFindResource(
                 message.Warning ? "WarningSubtleBrush" : "SurfaceAltBrush") as Brush
@@ -689,14 +1001,51 @@ namespace EverDefault.App
                 ?? Brushes.Gray;
             ToastBanner.Visibility = Visibility.Visible;
 
+            RestartToastTimer();
+        }
+
+        private void RestartToastTimer()
+        {
             _toastTimer.Stop();
-            _toastTimer.Interval = TimeSpan.FromSeconds(message.Warning ? 8 : 4);
+            if (_currentToast == null)
+                return;
+
+            _toastTimer.Interval = TimeSpan.FromSeconds(_currentToast.Warning ? 12 : 5);
             _toastTimer.Start();
+        }
+
+        private void OnToastMouseEnter(object sender, MouseEventArgs e)
+        {
+            _toastTimer.Stop();
+        }
+
+        private void OnToastMouseLeave(object sender, MouseEventArgs e)
+        {
+            if (ToastBanner.Visibility == Visibility.Visible)
+                RestartToastTimer();
+        }
+
+        private void OnToastClose(object sender, RoutedEventArgs e)
+        {
+            HideToast();
+        }
+
+        private void OnToastCopy(object sender, RoutedEventArgs e)
+        {
+            try
+            {
+                Clipboard.SetText(ToastText.Text ?? string.Empty);
+            }
+            catch (Exception)
+            {
+                // The clipboard can be locked by another process; copying is optional.
+            }
         }
 
         private void HideToast()
         {
             _toastTimer.Stop();
+            _currentToast = null;
             ToastBanner.Visibility = Visibility.Collapsed;
 
             if (_toasts.Count > 0)
@@ -712,7 +1061,8 @@ namespace EverDefault.App
 
         public bool Confirm(string message)
         {
-            return MessageBox.Show(this, message, "确认", MessageBoxButton.YesNo) == MessageBoxResult.Yes;
+            var dialog = new ConfirmDialog(message) { Owner = IsVisible ? this : null };
+            return dialog.ShowDialog() == true;
         }
 
         private void SetStatus(string text, string toneKey, bool colorText = false)

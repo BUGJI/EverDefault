@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using EverDefault.Core.Model;
 using EverDefault.Ipc;
 using EverDefault.Registry.Associations;
@@ -173,7 +175,8 @@ namespace EverDefault.App
             @"HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer";
 
         private IAppHost _host;
-        private readonly List<AppInfo> _apps = new List<AppInfo>();
+        private readonly ObservableCollection<AppInfo> _apps = new ObservableCollection<AppInfo>();
+        private readonly DispatcherTimer _previewTimer;
         private readonly List<ExtensionOption> _extensionOptions = new List<ExtensionOption>();
         private readonly List<SettingPresetOption> _presetOptions = new List<SettingPresetOption>();
         private List<NameSpaceOption> _nsOptions = new List<NameSpaceOption>();
@@ -199,12 +202,55 @@ namespace EverDefault.App
             BuildPresets();
             RefreshExtensionList();
 
-            _apps.AddRange(AppScanner.LoadApplications());
+            _previewTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+            _previewTimer.Tick += (sender, args) =>
+            {
+                _previewTimer.Stop();
+                UpdatePreviewsNow();
+            };
+
             AppBox.ItemsSource = _apps;
+            _ = LoadApplicationsAsync();
 
             _initialized = true;
             UpdateModeVisibility();
-            UpdatePreviews();
+            UpdatePreviewsNow();
+        }
+
+        private async System.Threading.Tasks.Task LoadApplicationsAsync()
+        {
+            try
+            {
+                var apps = await AppScanner.LoadApplicationsAsync();
+                if (apps == null || apps.Count == 0)
+                    return;
+
+                var text = AppBox.Text;
+                var selected = AppBox.SelectedItem as AppInfo;
+
+                _apps.Clear();
+                foreach (var app in apps)
+                    _apps.Add(app);
+
+                if (!string.IsNullOrWhiteSpace(text))
+                    AppBox.Text = text;
+
+                if (selected != null)
+                {
+                    AppBox.SelectedItem = _apps.FirstOrDefault(
+                        a => string.Equals(a.ExePath, selected.ExePath, StringComparison.OrdinalIgnoreCase));
+                }
+                else if (_scannedApp != null)
+                {
+                    AppBox.SelectedItem = _apps.FirstOrDefault(
+                        a => string.Equals(a.DisplayName, _scannedApp.DisplayName,
+                            StringComparison.CurrentCultureIgnoreCase));
+                }
+            }
+            catch (Exception)
+            {
+                // The list is optional; the user can still browse for an executable.
+            }
         }
 
         public event EventHandler AdvancedRequested;
@@ -733,14 +779,6 @@ namespace EverDefault.App
                 .ToList();
         }
 
-        private void OnNsSelectAll(object sender, RoutedEventArgs e)
-        {
-            foreach (var option in _nsOptions)
-                option.IsSelected = true;
-            RefreshNameSpaceList();
-            UpdatePreviews();
-        }
-
         private void OnNsSelectNone(object sender, RoutedEventArgs e)
         {
             foreach (var option in _nsOptions)
@@ -757,6 +795,15 @@ namespace EverDefault.App
         }
 
         private void UpdatePreviews()
+        {
+            if (!_initialized)
+                return;
+
+            _previewTimer.Stop();
+            _previewTimer.Start();
+        }
+
+        private void UpdatePreviewsNow()
         {
             if (!_initialized)
                 return;

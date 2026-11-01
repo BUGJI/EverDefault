@@ -12,18 +12,6 @@
             <TextBlock x:Name="Hint" Style="{StaticResource PageHint}"
                        Text="这里是你正在保护的项目。关掉开关即可暂时停用，点“调整”可以改保护范围。" />
 
-            <Border x:Name="OfflineBanner" Style="{StaticResource CardPanel}" Margin="0,10,0,0"
-                    Background="{DynamicResource WarningSubtleBrush}"
-                    BorderBrush="{DynamicResource WarningBrush}" Visibility="Collapsed">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="启动后台保护" MinWidth="118"
-                            Margin="12,0,0,0" Click="OnStartService" />
-                    <TextBlock x:Name="OfflineText" Text="后台保护未运行，暂时无法读取或修改保护项。"
-                               VerticalAlignment="Center" TextWrapping="Wrap"
-                               Foreground="{DynamicResource WarningBrush}" />
-                </DockPanel>
-            </Border>
-
             <WrapPanel Margin="0,14,0,0">
                 <Button x:Name="ProtectCurrentButton" Content="保护当前默认程序"
                         Style="{StaticResource PrimaryButton}" MinWidth="156" Margin="0,0,8,6"
@@ -40,13 +28,20 @@
 
             <WrapPanel Margin="0,2,0,0">
                 <Grid Width="220" Margin="0,0,8,6">
-                    <TextBox x:Name="SearchBox" Padding="6,4" TextChanged="OnSearchChanged"
+                    <TextBox x:Name="SearchBox" Padding="6,4,26,4" TextChanged="OnSearchChanged"
                              AutomationProperties.Name="搜索保护项"
                              ToolTip="按应用名或保护范围搜索。" />
                     <TextBlock x:Name="SearchPlaceholder" Text="搜索应用或文件类型"
                                Margin="8,0,0,0" VerticalAlignment="Center"
                                Foreground="{DynamicResource TextMutedBrush}"
                                IsHitTestVisible="False" />
+                    <Button x:Name="ClearSearchButton" Content="×" Style="{StaticResource SubtleButton}"
+                            Width="22" Height="22" MinHeight="0" Padding="0" FontSize="14"
+                            FontFamily="{StaticResource AppFontFamily}"
+                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                            Margin="0,0,4,0" Visibility="Collapsed"
+                            AutomationProperties.Name="清除搜索" ToolTip="清除搜索"
+                            Click="OnClearSearch" />
                 </Grid>
                 <ComboBox x:Name="FilterBox" Width="110" Margin="0,0,8,6"
                           SelectionChanged="OnFilterChanged"
@@ -58,20 +53,40 @@
                 </ComboBox>
                 <Button x:Name="PauseAllButton" Style="{StaticResource SubtleButton}"
                         Content="全部暂停 1 小时" MinWidth="120" Margin="0,0,8,6"
-                        Click="OnPauseAll" />
+                        ToolTip="点击暂停 1 小时；右键可选择其他时长" Click="OnPauseAll">
+                    <Button.ContextMenu>
+                        <ContextMenu>
+                            <MenuItem Header="暂停 15 分钟" Tag="15" Click="OnPauseAllFor" />
+                            <MenuItem Header="暂停 1 小时" Tag="60" Click="OnPauseAllFor" />
+                            <MenuItem Header="暂停 8 小时" Tag="480" Click="OnPauseAllFor" />
+                        </ContextMenu>
+                    </Button.ContextMenu>
+                </Button>
                 <Button x:Name="ResumeAllButton" Style="{StaticResource SubtleButton}"
                         Content="全部恢复" MinWidth="88" Margin="0,0,8,6"
                         Click="OnResumeAll" />
             </WrapPanel>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" Margin="0,10,0,0" VerticalScrollBarVisibility="Auto"
-                      HorizontalScrollBarVisibility="Disabled">
-            <StackPanel>
-                <TextBlock x:Name="EmptyHint" Style="{StaticResource HintText}" Margin="0,8,0,8" />
+        <Grid Grid.Row="1" Margin="0,10,0,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
-                <ItemsControl x:Name="ProtectionList">
-                    <ItemsControl.ItemTemplate>
+            <TextBlock x:Name="EmptyHint" Style="{StaticResource HintText}" Margin="0,8,0,8" />
+
+            <ListBox x:Name="ProtectionList" Grid.Row="1"
+                     Background="Transparent" BorderThickness="0" Padding="0"
+                     ItemContainerStyle="{StaticResource PlainListItem}"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingStackPanel.IsVirtualizing="True"
+                     VirtualizingStackPanel.VirtualizationMode="Recycling"
+                     Focusable="False">
+                    <ListBox.ItemTemplate>
                         <DataTemplate>
                             <Border Style="{StaticResource CardPanel}" Margin="0,0,0,8">
                                 <Grid>
@@ -126,7 +141,11 @@
                                                 ToolTip="更多操作" Click="OnMore">
                                             <Button.ContextMenu>
                                                 <ContextMenu>
-                                                    <MenuItem Header="{Binding PauseMenuText}" Click="OnPauseToggle" />
+                                                    <MenuItem Header="暂停 15 分钟" Tag="15" Click="OnPauseItemFor" />
+                                                    <MenuItem Header="暂停 1 小时" Tag="60" Click="OnPauseItemFor" />
+                                                    <MenuItem Header="暂停 8 小时" Tag="480" Click="OnPauseItemFor" />
+                                                    <MenuItem Header="恢复保护" Tag="0" Click="OnPauseItemFor" />
+                                                    <Separator />
                                                     <MenuItem Header="停止保护" Click="OnStop"
                                                               Foreground="{DynamicResource DangerBrush}" />
                                                 </ContextMenu>
@@ -157,9 +176,8 @@
                                 </MultiDataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </StackPanel>
-        </ScrollViewer>
+                    </ListBox.ItemTemplate>
+            </ListBox>
+        </Grid>
     </Grid>
 </UserControl>

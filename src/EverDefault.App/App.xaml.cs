@@ -75,7 +75,9 @@ namespace EverDefault.App
                 () => window.Dispatcher.Invoke(new Action(window.TogglePause)),
                 id => window.Dispatcher.Invoke(new Action(() => window.OpenRuleById(id))),
                 () => window.Dispatcher.Invoke(new Action(() => window.Navigate("activity"))),
-                () => window.Dispatcher.Invoke(new Action(() => window.Navigate("settings"))));
+                () => window.Dispatcher.Invoke(new Action(() => window.Navigate("settings"))),
+                minutes => window.Dispatcher.Invoke(new Action(() => window.PauseFor(minutes))),
+                () => (bool)window.Dispatcher.Invoke(new Func<bool>(window.ConfirmExit)));
 
             window.NotificationRequested += message =>
                 _tray.ShowNotification(message.Title, message.Text, message.RuleId, message.IsFailure);

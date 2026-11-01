@@ -18,6 +18,12 @@ namespace EverDefault.App
             window.MaxWidth = width;
             window.MaxHeight = height;
 
+            if (window.MinWidth > width)
+                window.MinWidth = width;
+
+            if (window.MinHeight > height)
+                window.MinHeight = height;
+
             if (!double.IsNaN(window.Width) && window.Width > width)
                 window.Width = width;
 

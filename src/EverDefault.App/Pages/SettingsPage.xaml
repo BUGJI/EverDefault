@@ -7,18 +7,6 @@
             <TextBlock x:Name="Hint" Style="{StaticResource PageHint}"
                        Text="这些设置保存在后台保护中，修改后点“保存设置”。" />
 
-            <Border x:Name="OfflineBanner" Style="{StaticResource CardPanel}" Margin="0,10,0,0"
-                    Background="{DynamicResource WarningSubtleBrush}"
-                    BorderBrush="{DynamicResource WarningBrush}" Visibility="Collapsed">
-                <DockPanel>
-                    <Button DockPanel.Dock="Right" Content="启动后台保护" MinWidth="118"
-                            Margin="12,0,0,0" Click="OnStartService" />
-                    <TextBlock x:Name="OfflineText" Text="后台保护未运行，无法读取或保存设置。"
-                               VerticalAlignment="Center" TextWrapping="Wrap"
-                               Foreground="{DynamicResource WarningBrush}" />
-                </DockPanel>
-            </Border>
-
             <Border Style="{StaticResource CardPanel}" Margin="0,14,0,0">
                 <StackPanel>
                     <TextBlock Text="常规" Style="{StaticResource SectionHeader}" />
@@ -31,8 +19,14 @@
 
                     <DockPanel Margin="0,8,0,0">
                         <TextBlock Text="主题" Style="{StaticResource FieldLabel}" />
-                        <ComboBox x:Name="ThemeBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                        <ComboBox x:Name="ThemeBox" DisplayMemberPath="Text" SelectedValuePath="Value"
+                                  AutomationProperties.Name="主题" ToolTip="亮色、暗色或跟随系统" />
                     </DockPanel>
+
+                    <Button x:Name="RunWizardButton" Content="重新运行首次设置向导…"
+                            Style="{StaticResource SubtleButton}" HorizontalAlignment="Left"
+                            Margin="0,12,0,0" Click="OnRunWizard"
+                            ToolTip="再次挑选要保护的默认程序" />
                 </StackPanel>
             </Border>
 
@@ -42,7 +36,8 @@
                     <CheckBox x:Name="CheckUpdatesBox" Content="检查版本更新" Margin="0,5" />
                     <DockPanel Margin="0,6,0,0">
                         <TextBlock Text="检测频率" Style="{StaticResource FieldLabel}" />
-                        <ComboBox x:Name="UpdateIntervalBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                        <ComboBox x:Name="UpdateIntervalBox" DisplayMemberPath="Text" SelectedValuePath="Value"
+                                  AutomationProperties.Name="检测频率" />
                     </DockPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                         <Button x:Name="CheckNowButton" Content="立即检查更新" MinWidth="112"
@@ -97,18 +92,21 @@
                             <DockPanel Margin="0,12,0,0">
                                 <TextBlock Text="系统版本覆盖" Style="{StaticResource FieldLabel}"
                                            ToolTip="一般保持“自动检测”。仅在自动识别不准时手动指定。" />
-                                <ComboBox x:Name="OsBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                                <ComboBox x:Name="OsBox" DisplayMemberPath="Text" SelectedValuePath="Value"
+                                          AutomationProperties.Name="系统版本覆盖" />
                             </DockPanel>
 
                             <DockPanel Margin="0,6,0,0">
                                 <TextBlock Text="日志保留天数" Style="{StaticResource FieldLabel}" />
-                                <TextBox x:Name="RetentionBox" Width="80" HorizontalAlignment="Left" />
+                                <TextBox x:Name="RetentionBox" Width="80" HorizontalAlignment="Left"
+                                         AutomationProperties.Name="日志保留天数" ToolTip="保留多少天的活动记录" />
                             </DockPanel>
 
                             <DockPanel Margin="0,6,0,0">
                                 <TextBlock Text="目标用户范围" Style="{StaticResource FieldLabel}"
                                            ToolTip="后台服务以系统身份运行时，规则作用于哪些用户的配置。" />
-                                <ComboBox x:Name="UserScopeBox" DisplayMemberPath="Text" SelectedValuePath="Value" />
+                                <ComboBox x:Name="UserScopeBox" DisplayMemberPath="Text" SelectedValuePath="Value"
+                                          AutomationProperties.Name="目标用户范围" />
                             </DockPanel>
                         </StackPanel>
                     </Border>

@@ -109,6 +109,19 @@ namespace EverDefault.Registry.Associations
 
         private static readonly object Sync = new object();
 
+        private static readonly Dictionary<string, ResolveCacheEntry> ResolveCache =
+            new Dictionary<string, ResolveCacheEntry>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly object ResolveSync = new object();
+
+        private static readonly TimeSpan ResolveTtl = TimeSpan.FromSeconds(3);
+
+        private sealed class ResolveCacheEntry
+        {
+            public AssociationEntry Entry;
+            public DateTime ExpiresUtc;
+        }
+
         public static IReadOnlyList<AssociationEntry> LoadCurrentUser()
         {
             var entries = new List<AssociationEntry>();
@@ -131,6 +144,30 @@ namespace EverDefault.Registry.Associations
             if (normalized == null)
                 return null;
 
+            var cacheKey = (kind == AssociationKind.UrlProtocol ? "p:" : "e:") + normalized;
+            lock (ResolveSync)
+            {
+                ResolveCacheEntry cached;
+                if (ResolveCache.TryGetValue(cacheKey, out cached)
+                    && cached.ExpiresUtc > DateTime.UtcNow)
+                    return cached.Entry;
+            }
+
+            var entry = ResolveUncached(kind, normalized);
+            lock (ResolveSync)
+            {
+                ResolveCache[cacheKey] = new ResolveCacheEntry
+                {
+                    Entry = entry,
+                    ExpiresUtc = DateTime.UtcNow.Add(ResolveTtl)
+                };
+            }
+
+            return entry;
+        }
+
+        private static AssociationEntry ResolveUncached(AssociationKind kind, string normalized)
+        {
             var basePath = kind == AssociationKind.UrlProtocol ? UrlAssociationsBase : FileExtsBase;
 
             try

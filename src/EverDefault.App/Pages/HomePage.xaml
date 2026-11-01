@@ -1,6 +1,41 @@
 <UserControl x:Class="EverDefault.App.HomePage"
              xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <UserControl.Resources>
+        <Style x:Key="StatCardButton" TargetType="Button">
+            <Setter Property="Background" Value="{DynamicResource SurfaceBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource CardBorderBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="16" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="VerticalContentAlignment" Value="Stretch" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{StaticResource FocusVisual}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="Bd" CornerRadius="{StaticResource RadiusCard}"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SurfaceHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource DisabledBackgroundBrush}" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </UserControl.Resources>
+
     <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
         <StackPanel>
             <TextBlock Text="主页" Style="{StaticResource PageTitle}" />
@@ -13,6 +48,9 @@
                                 Margin="16,0,0,0">
                         <Button x:Name="ReconnectButton" Content="重试连接" Style="{StaticResource SubtleButton}"
                                 MinWidth="88" Margin="0,0,8,0" Visibility="Collapsed" Click="OnReconnect" />
+                        <Button x:Name="RunNowButton" Content="立即应用全部" Style="{StaticResource SubtleButton}"
+                                MinWidth="98" Margin="0,0,8,0" Click="OnRunNow"
+                                ToolTip="立即对所有已启用的保护执行一次写回，发现不一致会自动改回。" />
                         <Border x:Name="ModeBadge" Padding="9,4" Margin="0,0,8,0" CornerRadius="10"
                                 Background="{DynamicResource ControlBackgroundBrush}"
                                 BorderBrush="{DynamicResource CardBorderBrush}" BorderThickness="1">
@@ -20,7 +58,17 @@
                                        Foreground="{DynamicResource TextMutedBrush}" />
                         </Border>
                         <Button x:Name="PauseButton" Style="{StaticResource PrimaryButton}"
-                                MinWidth="118" Click="OnPause" />
+                                MinWidth="118" Click="OnPause"
+                                ToolTip="点击暂停 1 小时；右键可选择其他时长">
+                            <Button.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="暂停 15 分钟" Tag="15" Click="OnPauseFor" />
+                                    <MenuItem Header="暂停 1 小时" Tag="60" Click="OnPauseFor" />
+                                    <MenuItem Header="暂停 8 小时" Tag="480" Click="OnPauseFor" />
+                                    <MenuItem Header="立即恢复" Tag="0" Click="OnPauseFor" />
+                                </ContextMenu>
+                            </Button.ContextMenu>
+                        </Button>
                     </StackPanel>
 
                     <Grid>
@@ -51,9 +99,10 @@
                     <ColumnDefinition Width="*" />
                 </Grid.ColumnDefinitions>
 
-                <Border Grid.Column="0" Style="{StaticResource CardPanel}" Margin="0,0,10,0"
-                        Cursor="Hand" Tag="all" MouseLeftButtonUp="OnStatClick"
-                        ToolTip="查看全部活动">
+                <Button Grid.Column="0" Style="{StaticResource StatCardButton}" Margin="0,0,10,0"
+                        Tag="all" Click="OnStatClick"
+                        AutomationProperties.Name="查看全部活动"
+                        ToolTip="查看全部活动。「本次」指后台保护启动以来的累计。">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE81C;" Style="{StaticResource IconGlyph}"
@@ -63,10 +112,11 @@
                         </StackPanel>
                         <TextBlock x:Name="ObservedText" Style="{StaticResource StatValue}" Text="0" />
                     </StackPanel>
-                </Border>
-                <Border Grid.Column="1" Style="{StaticResource CardPanel}" Margin="0,0,10,0"
-                        Cursor="Hand" Tag="blocked" MouseLeftButtonUp="OnStatClick"
-                        ToolTip="查看已拦截的活动">
+                </Button>
+                <Button Grid.Column="1" Style="{StaticResource StatCardButton}" Margin="0,0,10,0"
+                        Tag="blocked" Click="OnStatClick"
+                        AutomationProperties.Name="查看已拦截的活动"
+                        ToolTip="查看已拦截的活动。「本次」指后台保护启动以来的累计。">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE73E;" Style="{StaticResource IconGlyph}"
@@ -77,10 +127,11 @@
                         <TextBlock x:Name="BlockedText" Style="{StaticResource StatValue}" Text="0"
                                    Foreground="{DynamicResource SuccessBrush}" />
                     </StackPanel>
-                </Border>
-                <Border Grid.Column="2" Style="{StaticResource CardPanel}"
-                        Cursor="Hand" Tag="failed" MouseLeftButtonUp="OnStatClick"
-                        ToolTip="查看需要处理的活动">
+                </Button>
+                <Button Grid.Column="2" Style="{StaticResource StatCardButton}"
+                        Tag="failed" Click="OnStatClick"
+                        AutomationProperties.Name="查看需要处理的活动"
+                        ToolTip="查看需要处理的活动。「本次」指后台保护启动以来的累计。">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <TextBlock Text="&#xE7BA;" Style="{StaticResource IconGlyph}"
@@ -90,7 +141,7 @@
                         </StackPanel>
                         <TextBlock x:Name="FailedText" Style="{StaticResource StatValue}" Text="0" />
                     </StackPanel>
-                </Border>
+                </Button>
             </Grid>
 
             <Border x:Name="ConflictCard" Style="{StaticResource CardPanel}" Margin="0,10,0,0"
@@ -126,8 +177,9 @@
                                    Text="守住网页和邮件链接的默认程序。" />
                         <TextBlock x:Name="BrowserStateText" Style="{StaticResource HintText}"
                                    Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
-                        <Button Content="保护浏览器和邮件" Tag="browser"
-                                Click="OnTemplate" HorizontalAlignment="Left" />
+                        <Button x:Name="BrowserButton" Content="保护浏览器和邮件" Tag="browser"
+                                Click="OnTemplate" HorizontalAlignment="Left"
+                                ToolTipService.ShowOnDisabled="True" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardPanel}" Margin="0,0,0,10">
@@ -147,8 +199,9 @@
                                    Text="防止 PDF、Word、Excel 打开方式被换掉。" />
                         <TextBlock x:Name="DocsStateText" Style="{StaticResource HintText}"
                                    Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
-                        <Button Content="保护文档" Tag="docs"
-                                Click="OnTemplate" HorizontalAlignment="Left" />
+                        <Button x:Name="DocsButton" Content="保护文档" Tag="docs"
+                                Click="OnTemplate" HorizontalAlignment="Left"
+                                ToolTipService.ShowOnDisabled="True" />
                     </StackPanel>
                 </Border>
                 <Border Style="{StaticResource CardPanel}" Margin="0,0,10,0">
@@ -168,7 +221,7 @@
                                    Text="扫描并移除多出来的图标。" />
                         <TextBlock x:Name="NameSpaceStateText" Style="{StaticResource HintText}"
                                    Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
-                        <Button Content="扫描此电脑" Tag="thispc"
+                        <Button x:Name="NameSpaceButton" Content="扫描此电脑" Tag="thispc"
                                 Click="OnTemplate" HorizontalAlignment="Left" />
                     </StackPanel>
                 </Border>
@@ -189,7 +242,7 @@
                                    Text="锁定文件扩展名、隐藏文件等常用设置。" />
                         <TextBlock x:Name="SettingsStateText" Style="{StaticResource HintText}"
                                    Margin="0,0,0,8" Foreground="{DynamicResource AccentTextBrush}" />
-                        <Button Content="选择设置" Tag="settings"
+                        <Button x:Name="SettingsButton" Content="选择设置" Tag="settings"
                                 Click="OnTemplate" HorizontalAlignment="Left" />
                     </StackPanel>
                 </Border>

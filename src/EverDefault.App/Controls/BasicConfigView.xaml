@@ -78,8 +78,7 @@
                     <Button x:Name="ScanNameSpaceButton" Content="扫描此电脑" MinWidth="100" Click="OnScanNameSpace" />
                     <TextBox x:Name="NsSearchBox" Width="220" Margin="8,0,0,0"
                              ToolTip="按名称或路径过滤。" TextChanged="OnNsSearchChanged" />
-                    <Button Content="全选" MinWidth="64" Margin="8,0,0,0" Click="OnNsSelectAll" />
-                    <Button Content="全不选" MinWidth="72" Margin="6,0,0,0" Click="OnNsSelectNone" />
+                    <Button Content="全不选" MinWidth="72" Margin="8,0,0,0" Click="OnNsSelectNone" />
                 </StackPanel>
 
                 <TextBlock x:Name="NsStatusText" Style="{StaticResource HintText}" Margin="0,8,0,6" />

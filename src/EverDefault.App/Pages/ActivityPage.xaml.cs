@@ -15,6 +15,7 @@ namespace EverDefault.App
         private readonly IAppHost _host;
         private List<ActivityItem> _items = new List<ActivityItem>();
         private Dictionary<Guid, RuleBase> _rules = new Dictionary<Guid, RuleBase>();
+        private List<RuleRow> _lastRules;
         private string _filter = "all";
 
         public ActivityPage(IAppHost host)
@@ -26,26 +27,27 @@ namespace EverDefault.App
 
         public void ApplySnapshot(RefreshSnapshot snapshot)
         {
-            _items = snapshot.Logs ?? new List<ActivityItem>();
-            _rules = snapshot.Rules == null
-                ? new Dictionary<Guid, RuleBase>()
-                : snapshot.Rules
+            var logsChanged = snapshot.Logs != null && !ReferenceEquals(snapshot.Logs, _items);
+            if (logsChanged)
+                _items = snapshot.Logs;
+
+            if (snapshot.Rules != null && !ReferenceEquals(snapshot.Rules, _lastRules))
+            {
+                _lastRules = snapshot.Rules;
+                _rules = snapshot.Rules
                     .GroupBy(r => r.Rule.Id)
                     .ToDictionary(g => g.Key, g => g.First().Rule);
+            }
 
-            OfflineBanner.Visibility = snapshot.ServiceRunning
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            OfflineText.Text = snapshot.ServiceStarting
-                ? "正在启动后台保护，请稍候…"
-                : "后台保护未运行，暂时没有活动记录。";
             ClearButton.IsEnabled = snapshot.ServiceRunning;
             SearchBox.IsEnabled = snapshot.ServiceRunning;
+            ClearSearchButton.IsEnabled = snapshot.ServiceRunning;
             Hint.Text = snapshot.ServiceRunning
                 ? "EverDefault 每次改回设置都会记在这里。"
-                : "后台服务未运行，暂时没有活动记录。";
+                : "后台服务未运行，以下为上次读取到的记录。";
 
-            ApplyFilter();
+            if (logsChanged || ActivityList.ItemsSource == null)
+                ApplyFilter();
         }
 
         public void SetFilter(string filter)
@@ -55,17 +57,24 @@ namespace EverDefault.App
             ApplyFilter();
         }
 
-        private void OnStartService(object sender, RoutedEventArgs e)
-        {
-            ServiceConnector.TryStart(_host);
-        }
-
         private void OnSearchChanged(object sender, TextChangedEventArgs e)
         {
-            SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            var empty = string.IsNullOrEmpty(SearchBox.Text);
+            SearchPlaceholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+            ClearSearchButton.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
             ApplyFilter();
+        }
+
+        private void OnClearSearch(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Text = string.Empty;
+            SearchBox.Focus();
+        }
+
+        public void FocusSearch()
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
         }
 
         private async void OnClear(object sender, RoutedEventArgs e)
@@ -147,6 +156,7 @@ namespace EverDefault.App
 
             var list = filtered.ToList();
             ActivityList.ItemsSource = list;
+
             EmptyHint.Text = list.Count == 0
                 ? (_filter == "all" && query.Length == 0
                     ? "还没有活动。保护生效后，这里会显示每一次拦截。"
@@ -179,18 +189,10 @@ namespace EverDefault.App
             if (window.ShowDialog() != true || window.Rules == null || window.Rules.Count == 0)
                 return;
 
-            foreach (var updated in window.Rules)
-            {
-                var response = await _host.SendAsync(
-                    IpcProtocol.CommandSaveRule, RuleCodec.Serialize(updated));
-                if (!response.Success)
-                {
-                    _host.ShowWarning("保存失败：" + response.Error);
-                    return;
-                }
-            }
+            var outcome = await RuleApply.SaveAndRunAsync(_host, window.Rules, "已更新保护。");
+            if (!outcome.Saved)
+                return;
 
-            _host.ShowInfo("已更新保护。");
             _host.Refresh();
         }
     }

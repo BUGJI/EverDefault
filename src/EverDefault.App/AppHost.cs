@@ -33,6 +33,9 @@ namespace EverDefault.App
 
         /// <summary>Applies UI-side settings (theme, startup entry, update check).</summary>
         void ApplyUserSettings(AppSettings settings);
+
+        /// <summary>Opens the first-run wizard again, even if it was completed before.</summary>
+        void ShowOnboarding();
     }
 
     /// <summary>A page that reacts to the periodic status/rules/log snapshot.</summary>
@@ -54,10 +57,14 @@ namespace EverDefault.App
 
         public List<RuleRow> Rules;
 
+        public bool RulesChanged;
+
         public List<string> Conflicts;
 
         public List<Guid> ConflictingRuleIds;
 
         public List<ActivityItem> Logs;
+
+        public bool LogsChanged;
     }
 }

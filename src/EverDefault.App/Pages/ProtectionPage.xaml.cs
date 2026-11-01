@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Windows;
 using System.Windows.Controls;
 using EverDefault.Core.Model;
@@ -13,6 +14,7 @@ namespace EverDefault.App
     {
         private readonly IAppHost _host;
         private List<ProtectionItem> _allItems = new List<ProtectionItem>();
+        private List<RuleRow> _lastRules;
         private bool _serviceRunning;
 
         public ProtectionPage(IAppHost host)
@@ -25,24 +27,11 @@ namespace EverDefault.App
         public void ApplySnapshot(RefreshSnapshot snapshot)
         {
             _serviceRunning = snapshot.ServiceRunning;
-            OfflineBanner.Visibility = _serviceRunning ? Visibility.Collapsed : Visibility.Visible;
-            OfflineText.Text = snapshot.ServiceStarting
-                ? "正在启动后台保护，请稍候…"
-                : "后台保护未运行，暂时无法读取或修改保护项。";
 
-            if (!_serviceRunning)
+            if (snapshot.Rules != null && !ReferenceEquals(snapshot.Rules, _lastRules))
             {
-                _allItems = new List<ProtectionItem>();
-                ProtectionList.ItemsSource = null;
-                EmptyHint.Text = string.Empty;
-            }
-            else if (snapshot.Rules != null)
-            {
+                _lastRules = snapshot.Rules;
                 _allItems = ProtectionBuilder.BuildItems(snapshot.Rules.Select(r => r.Rule));
-                ApplyFilter();
-            }
-            else
-            {
                 ApplyFilter();
             }
 
@@ -54,17 +43,33 @@ namespace EverDefault.App
             ProtectionList.IsEnabled = _serviceRunning;
             SearchBox.IsEnabled = _serviceRunning;
             FilterBox.IsEnabled = _serviceRunning;
+            UpdateActionButtons();
+        }
 
+        private void UpdateActionButtons()
+        {
             PauseAllButton.IsEnabled = _serviceRunning && _allItems.Count > 0;
             ResumeAllButton.IsEnabled = _serviceRunning && _allItems.Any(i => i.Paused);
         }
 
         private void OnSearchChanged(object sender, TextChangedEventArgs e)
         {
-            SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            var empty = string.IsNullOrEmpty(SearchBox.Text);
+            SearchPlaceholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+            ClearSearchButton.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
             ApplyFilter();
+        }
+
+        private void OnClearSearch(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Text = string.Empty;
+            SearchBox.Focus();
+        }
+
+        public void FocusSearch()
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
         }
 
         private void OnFilterChanged(object sender, SelectionChangedEventArgs e)
@@ -88,8 +93,7 @@ namespace EverDefault.App
             else
                 EmptyHint.Text = string.Empty;
 
-            PauseAllButton.IsEnabled = _serviceRunning && _allItems.Count > 0;
-            ResumeAllButton.IsEnabled = _serviceRunning && _allItems.Any(i => i.Paused);
+            UpdateActionButtons();
         }
 
         private static bool Matches(ProtectionItem item, string query, string tag)
@@ -115,11 +119,6 @@ namespace EverDefault.App
                    && value.IndexOf(query, StringComparison.OrdinalIgnoreCase) >= 0;
         }
 
-        private void OnStartService(object sender, RoutedEventArgs e)
-        {
-            ServiceConnector.TryStart(_host);
-        }
-
         private async void OnProtectCurrent(object sender, RoutedEventArgs e)
         {
             if (!_serviceRunning)
@@ -133,7 +132,7 @@ namespace EverDefault.App
             if (window.ShowDialog() != true || window.Rules == null || window.Rules.Count == 0)
                 return;
 
-            await SaveRules(window.Rules, "已保护当前默认程序。");
+            await SaveRules(window.Rules, "已保护当前默认程序。", apply: true);
         }
 
         private async void OnAddDefaultApp(object sender, RoutedEventArgs e)
@@ -150,7 +149,7 @@ namespace EverDefault.App
             if (window.ShowDialog() != true || window.Rules == null || window.Rules.Count == 0)
                 return;
 
-            await SaveRules(window.Rules, "已保护这个文件类型。");
+            await SaveRules(window.Rules, "已保护这个文件类型。", apply: true);
         }
 
         private async void OnAddNameSpace(object sender, RoutedEventArgs e)
@@ -176,7 +175,7 @@ namespace EverDefault.App
             if (window.ShowDialog() != true || window.Rules == null || window.Rules.Count == 0)
                 return;
 
-            await SaveRules(window.Rules, "已添加保护。");
+            await SaveRules(window.Rules, "已添加保护。", apply: true);
         }
 
         private async void OnToggle(object sender, RoutedEventArgs e)
@@ -190,7 +189,15 @@ namespace EverDefault.App
             foreach (var rule in item.Rules)
                 rule.Enabled = enabled;
 
-            await SaveRules(item.Rules, enabled ? "已启用保护。" : "已停用保护。", false);
+            var saved = await SaveRules(item.Rules, enabled ? "已启用保护。" : "已停用保护。", false);
+            if (saved)
+                return;
+
+            foreach (var rule in item.Rules)
+                rule.Enabled = !enabled;
+            item.Enabled = !enabled;
+            check.IsChecked = !enabled;
+            _host.Refresh();
         }
 
         private void OnMore(object sender, RoutedEventArgs e)
@@ -219,36 +226,42 @@ namespace EverDefault.App
             if (window.ShowDialog() != true || window.Rules == null || window.Rules.Count == 0)
                 return;
 
-            await SaveRules(window.Rules, "已更新保护。");
+            await SaveRules(window.Rules, "已更新保护。", apply: true);
         }
 
-        private async void OnPauseToggle(object sender, RoutedEventArgs e)
+        private async void OnPauseItemFor(object sender, RoutedEventArgs e)
         {
             var item = GetItem(sender);
             if (item == null)
                 return;
 
-            if (item.Paused)
-            {
-                foreach (var rule in item.Rules)
-                    rule.PausedUntilUtc = null;
-                await SaveRules(item.Rules, "已恢复保护。", false);
-            }
-            else
-            {
-                var until = DateTime.UtcNow.AddHours(1);
-                foreach (var rule in item.Rules)
-                    rule.PausedUntilUtc = until;
-                await SaveRules(item.Rules, "已暂停 1 小时，到时会自动恢复。", false);
-            }
+            var minutes = MinutesFrom(sender);
+            var until = minutes > 0 ? DateTime.UtcNow.AddMinutes(minutes) : (DateTime?)null;
+            foreach (var rule in item.Rules)
+                rule.PausedUntilUtc = until;
+
+            var message = minutes > 0
+                ? "已暂停 " + DescribeDuration(minutes) + "，到时会自动恢复。"
+                : "已恢复保护。";
+            await SaveRules(item.Rules, message);
         }
 
         private async void OnPauseAll(object sender, RoutedEventArgs e)
         {
-            if (_allItems.Count == 0)
+            await PauseAll(60);
+        }
+
+        private async void OnPauseAllFor(object sender, RoutedEventArgs e)
+        {
+            await PauseAll(MinutesFrom(sender));
+        }
+
+        private async System.Threading.Tasks.Task PauseAll(int minutes)
+        {
+            if (_allItems.Count == 0 || minutes <= 0)
                 return;
 
-            var until = DateTime.UtcNow.AddHours(1);
+            var until = DateTime.UtcNow.AddMinutes(minutes);
             var rules = new List<RuleBase>();
             foreach (var item in _allItems)
             {
@@ -264,7 +277,7 @@ namespace EverDefault.App
             if (rules.Count == 0)
                 return;
 
-            await SaveRules(rules, "已暂停全部保护 1 小时，到时会自动恢复。", false);
+            await SaveRules(rules, "已暂停全部保护 " + DescribeDuration(minutes) + "，到时会自动恢复。");
         }
 
         private async void OnResumeAll(object sender, RoutedEventArgs e)
@@ -284,7 +297,26 @@ namespace EverDefault.App
             if (rules.Count == 0)
                 return;
 
-            await SaveRules(rules, "已恢复全部保护。", false);
+            await SaveRules(rules, "已恢复全部保护。");
+        }
+
+        private static int MinutesFrom(object sender)
+        {
+            var menu = sender as MenuItem;
+            var raw = menu == null ? null : menu.Tag as string;
+            int minutes;
+            return int.TryParse(raw, out minutes) ? minutes : 60;
+        }
+
+        private static string DescribeDuration(int minutes)
+        {
+            if (minutes == 15)
+                return "15 分钟";
+            if (minutes == 60)
+                return "1 小时";
+            if (minutes == 480)
+                return "8 小时";
+            return minutes + " 分钟";
         }
 
         private async void OnStop(object sender, RoutedEventArgs e)
@@ -296,16 +328,10 @@ namespace EverDefault.App
             if (!_host.Confirm("停止保护「" + item.Title + "」？\n之后其他程序修改它时不会再被改回。"))
                 return;
 
-            var failed = new List<string>();
-            foreach (var rule in item.Rules)
-            {
-                var response = await _host.SendAsync(IpcProtocol.CommandDeleteRule, rule.Id.ToString());
-                if (!response.Success)
-                    failed.Add(rule.Name + ": " + response.Error);
-            }
-
-            if (failed.Count > 0)
-                _host.ShowWarning("有保护项没能停止：\n" + string.Join("\n", failed.Take(5)));
+            var ids = item.Rules.Select(r => r.Id.ToString()).ToList();
+            var response = await _host.SendAsync(IpcProtocol.CommandDeleteRules, ids);
+            if (!response.Success)
+                _host.ShowWarning("保护项没能停止：" + response.Error);
             else
                 _host.ShowInfo("已停止保护。");
 
@@ -326,28 +352,40 @@ namespace EverDefault.App
             return list;
         }
 
-        private async System.Threading.Tasks.Task SaveRules(
-            IEnumerable<RuleBase> rules, string successMessage, bool refresh = true)
+        private async System.Threading.Tasks.Task<bool> SaveRules(
+            IEnumerable<RuleBase> rules, string successMessage, bool refresh = true, bool apply = false)
         {
-            var succeeded = 0;
-            var errors = new List<string>();
-            foreach (var rule in rules)
+            var list = (rules ?? Enumerable.Empty<RuleBase>())
+                .Where(r => r != null)
+                .ToList();
+            if (list.Count == 0)
+                return true;
+
+            if (apply)
             {
-                var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                if (response.Success)
-                    succeeded++;
-                else
-                    errors.Add((rule.Name ?? "保护项") + ": " + response.Error);
+                var outcome = await RuleApply.SaveAndRunAsync(_host, list, successMessage);
+                if (refresh)
+                    _host.Refresh();
+
+                return outcome.Saved;
             }
+
+            var payload = list.Select(RuleCodec.Serialize).ToList();
+            var response = await _host.SendAsync(IpcProtocol.CommandSaveRules, payload);
 
             if (refresh)
                 _host.Refresh();
 
-            if (errors.Count > 0)
-                _host.ShowWarning("保存完成：成功 " + succeeded + " 项，失败 " + errors.Count + " 项。\n"
-                    + string.Join("\n", errors.Take(5)));
-            else if (!string.IsNullOrEmpty(successMessage))
+            if (!response.Success)
+            {
+                _host.ShowWarning("保存失败：" + response.Error);
+                return false;
+            }
+
+            if (!string.IsNullOrEmpty(successMessage))
                 _host.ShowInfo(successMessage);
+
+            return true;
         }
     }
 }

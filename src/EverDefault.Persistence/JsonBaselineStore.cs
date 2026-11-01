@@ -12,6 +12,8 @@ namespace EverDefault.Persistence
         private readonly object _sync = new object();
         private readonly string _path;
         private List<BaselineRecord> _cache;
+        private int _batchDepth;
+        private bool _dirty;
 
         public JsonBaselineStore(string path)
         {
@@ -42,18 +44,64 @@ namespace EverDefault.Persistence
                     record.RuleId = ruleId;
                     list.Add(record);
                 }
-                Save(list);
+                Persist(list);
             }
         }
 
         public void DeleteForRule(Guid ruleId)
         {
+            DeleteForRules(new[] { ruleId });
+        }
+
+        public void DeleteForRules(IEnumerable<Guid> ruleIds)
+        {
+            if (ruleIds == null)
+                return;
+
+            var wanted = new HashSet<Guid>(ruleIds);
+            if (wanted.Count == 0)
+                return;
+
             lock (_sync)
             {
                 var list = Load();
-                if (list.RemoveAll(b => b.RuleId == ruleId) > 0)
-                    Save(list);
+                if (list.RemoveAll(b => wanted.Contains(b.RuleId)) > 0)
+                    Persist(list);
             }
+        }
+
+        public void BeginBatch()
+        {
+            lock (_sync)
+            {
+                _batchDepth++;
+            }
+        }
+
+        public void EndBatch()
+        {
+            lock (_sync)
+            {
+                if (_batchDepth > 0)
+                    _batchDepth--;
+
+                if (_batchDepth == 0 && _dirty)
+                {
+                    _dirty = false;
+                    Save(Load());
+                }
+            }
+        }
+
+        private void Persist(List<BaselineRecord> list)
+        {
+            if (_batchDepth > 0)
+            {
+                _dirty = true;
+                return;
+            }
+
+            Save(list);
         }
 
         private List<BaselineRecord> Load()

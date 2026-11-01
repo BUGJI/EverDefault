@@ -22,6 +22,8 @@ namespace EverDefault.Service.Hosting
     /// </summary>
     public sealed class EngineHost : IDisposable
     {
+        private const int MaxLogEntries = 5000;
+
         private readonly IRuleStore _rules;
         private readonly IBaselineStore _baselines;
         private readonly IChangeLogStore _log;
@@ -35,12 +37,21 @@ namespace EverDefault.Service.Hosting
         private readonly object _sync = new object();
         private readonly ModuleContext _context;
 
+        private HashSet<Guid> _conflicting = new HashSet<Guid>();
+        private List<ConflictReport> _conflictReports = new List<ConflictReport>();
+        private int _runInProgress;
         private Timer _scheduler;
         private Timer _userWatch;
+        private Timer _logMaintenance;
         private PipeServer _pipe;
         private List<RuleBase> _ruleCache = new List<RuleBase>();
         private List<string> _scopeSids = new List<string>();
         private DateTime _startedUtc;
+        private int _rulesRevision = 1;
+        private long _logLastId;
+        private int _observedCount;
+        private int _blockedCount;
+        private int _failedCount;
         private bool _disposed;
 
         public event Action<string> Trace;
@@ -62,6 +73,7 @@ namespace EverDefault.Service.Hosting
             _settings = settings;
             _registry = registry;
             _os = os;
+            log.Appended += OnLogAppended;
 
             var context = new ModuleContext
             {
@@ -83,11 +95,41 @@ namespace EverDefault.Service.Hosting
             };
         }
 
+        private void OnLogAppended(ChangeLogEntry entry)
+        {
+            if (entry == null)
+                return;
+
+            var result = entry.Result ?? string.Empty;
+            if (string.Equals(result, "failed", StringComparison.OrdinalIgnoreCase))
+                Interlocked.Increment(ref _failedCount);
+            else if (string.Equals(result, "logged", StringComparison.OrdinalIgnoreCase))
+                Interlocked.Increment(ref _observedCount);
+            else if (string.Equals(result, "restored", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(result, "deleted", StringComparison.OrdinalIgnoreCase)
+                     || string.Equals(result, "removed", StringComparison.OrdinalIgnoreCase))
+                Interlocked.Increment(ref _blockedCount);
+
+            // Events may be raised out of order across handler threads; keep the maximum.
+            while (true)
+            {
+                var current = Interlocked.Read(ref _logLastId);
+                if (entry.Id <= current)
+                    break;
+                if (Interlocked.CompareExchange(ref _logLastId, entry.Id, current) == current)
+                    break;
+            }
+        }
+
         public void Start()
         {
             _startedUtc = DateTime.UtcNow;
             UpgradeLegacyDefaultAppRules();
             Reload();
+
+            MaintainLog(_settings.Load());
+            Interlocked.Exchange(ref _logLastId, _log.LastId);
+            _logMaintenance = new Timer(OnLogMaintenanceTick, null, 60000, 3600000);
 
             _pipe = new PipeServer(IpcProtocol.PipeName, new IpcDispatcher(this).Handle);
             _pipe.Log += RaiseTrace;
@@ -99,6 +141,27 @@ namespace EverDefault.Service.Hosting
                 _userWatch = new Timer(OnUserWatchTick, null, 60000, 60000);
 
             RaiseTrace("engine started on " + _os);
+        }
+
+        private void MaintainLog(AppSettings settings)
+        {
+            try
+            {
+                var days = settings == null ? 30 : settings.LogRetentionDays;
+                if (days <= 0)
+                    days = 30;
+
+                _log.Maintenance(DateTime.UtcNow.AddDays(-days), MaxLogEntries);
+            }
+            catch (Exception ex)
+            {
+                RaiseTrace("log maintenance: " + ex.Message);
+            }
+        }
+
+        private void OnLogMaintenanceTick(object state)
+        {
+            MaintainLog(_settings.Load());
         }
 
         /// <summary>
@@ -126,6 +189,7 @@ namespace EverDefault.Service.Hosting
         {
             lock (_sync)
             {
+                Interlocked.Increment(ref _rulesRevision);
                 StopWatchers();
                 _nextDue.Clear();
 
@@ -137,10 +201,18 @@ namespace EverDefault.Service.Hosting
                 var rules = _rules.GetAll();
                 _ruleCache = rules.ToList();
 
-                var conflicting = _detector.ConflictingRuleIds(rules);
+                var reports = _detector.Detect(rules).ToList();
+                _conflictReports = reports;
+                _conflicting = new HashSet<Guid>();
+                foreach (var report in reports)
+                {
+                    if (report.First != null) _conflicting.Add(report.First.Id);
+                    if (report.Second != null) _conflicting.Add(report.Second.Id);
+                }
+
                 var hasScheduled = false;
 
-                foreach (var rule in rules.Where(r => r.Enabled && !conflicting.Contains(r.Id)))
+                foreach (var rule in rules.Where(r => r.Enabled && !_conflicting.Contains(r.Id)))
                 {
                     var family = settings.OsOverride != OsFamily.Unknown ? settings.OsOverride : _os.Family;
                     if (!rule.Supports(family))
@@ -349,27 +421,274 @@ namespace EverDefault.Service.Hosting
             }
         }
 
-        private void RunRule(RuleBase rule, IRuleModuleHandler handler, ChangeOrigin origin)
+        private bool RunRule(
+            RuleBase rule, IRuleModuleHandler handler, ChangeOrigin origin, bool honorPause = true)
         {
             var settings = _settings.Load();
             if (!settings.MonitoringEnabled)
-                return;
+                return false;
 
             var now = DateTime.UtcNow;
-            if (settings.PauseUntilUtc.HasValue && settings.PauseUntilUtc.Value > now)
-                return;
+            if (honorPause)
+            {
+                if (settings.PauseUntilUtc.HasValue && settings.PauseUntilUtc.Value > now)
+                    return false;
 
-            if (rule != null && rule.PausedUntilUtc.HasValue && rule.PausedUntilUtc.Value > now)
-                return;
+                if (rule != null && rule.PausedUntilUtc.HasValue && rule.PausedUntilUtc.Value > now)
+                    return false;
+            }
 
             try
             {
                 handler.Handle(rule, origin);
+                return true;
             }
             catch (Exception ex)
             {
                 RaiseTrace("rule '" + rule.Name + "' failed: " + ex.Message);
+                return false;
             }
+        }
+
+        /// <summary>
+        /// Runs every enabled, non-conflicting rule once. Explicit manual runs skip the
+        /// temporary pause, but still respect the global monitoring switch.
+        /// </summary>
+        public RunNowResult RunAllNow()
+        {
+            var settings = _settings.Load();
+            if (!settings.MonitoringEnabled)
+            {
+                return new RunNowResult
+                {
+                    Message = "保护已关闭，请先在设置中开启保护，再执行。"
+                };
+            }
+
+            List<RuleBase> eligible;
+            int total;
+            lock (_sync)
+            {
+                total = _ruleCache.Count;
+                eligible = _ruleCache.Where(r => IsRunnable(r, settings)).ToList();
+            }
+
+            if (eligible.Count == 0)
+            {
+                return new RunNowResult
+                {
+                    Skipped = total,
+                    Message = "没有可执行的保护规则。"
+                };
+            }
+
+            return ExecuteManualRun(eligible, total);
+        }
+
+        /// <summary>Runs a single rule once, even when its mode is Manual.</summary>
+        public RunNowResult RunRuleNow(Guid id)
+        {
+            var settings = _settings.Load();
+            if (!settings.MonitoringEnabled)
+            {
+                return new RunNowResult
+                {
+                    Message = "保护已关闭，请先在设置中开启保护，再执行。"
+                };
+            }
+
+            RuleBase rule;
+            bool conflicting;
+            lock (_sync)
+            {
+                rule = _ruleCache.FirstOrDefault(r => r.Id == id);
+                conflicting = _conflicting.Contains(id);
+            }
+
+            if (rule == null)
+                return new RunNowResult { Message = "规则不存在，可能已被删除。" };
+
+            if (conflicting)
+            {
+                return new RunNowResult
+                {
+                    Message = "这条规则与其他规则冲突，暂时不会执行。请先处理冲突。"
+                };
+            }
+
+            if (!IsRunnable(rule, settings))
+            {
+                return new RunNowResult
+                {
+                    Message = rule.Enabled
+                        ? "当前系统不支持这条规则。"
+                        : "这条规则已停用，启用后再执行。"
+                };
+            }
+
+            return ExecuteManualRun(new List<RuleBase> { rule }, 1);
+        }
+
+        /// <summary>
+        /// Saves the given rules and then applies them immediately. Use this for edits and
+        /// newly added protections; pause/enable toggles should keep using the plain save.
+        /// </summary>
+        public RunNowResult SaveRuleAndRun(RuleBase rule)
+        {
+            return SaveRulesAndRun(new[] { rule });
+        }
+
+        public RunNowResult SaveRulesAndRun(IEnumerable<RuleBase> rules)
+        {
+            var list = (rules ?? Enumerable.Empty<RuleBase>())
+                .Where(r => r != null)
+                .ToList();
+            if (list.Count == 0)
+                return new RunNowResult { Message = "没有可保存的规则。" };
+
+            SaveRules(list);
+
+            var settings = _settings.Load();
+            if (!settings.MonitoringEnabled)
+            {
+                return new RunNowResult
+                {
+                    Skipped = list.Count,
+                    Message = "已保存。保护已关闭，未执行；开启保护后再应用。"
+                };
+            }
+
+            List<RuleBase> eligible;
+            lock (_sync)
+            {
+                eligible = list.Where(r => IsRunnable(r, settings)).ToList();
+            }
+
+            if (eligible.Count == 0)
+            {
+                return new RunNowResult
+                {
+                    Skipped = list.Count,
+                    Message = "已保存，但没有可执行的规则（停用/冲突/不适用）。"
+                };
+            }
+
+            var result = ExecuteManualRun(eligible, list.Count);
+            result.Message = "已保存。" + result.Message;
+            return result;
+        }
+
+        /// <summary>Runs several rules by id once, even when they are in Manual mode.</summary>
+        public RunNowResult RunRulesNow(IEnumerable<Guid> ids)
+        {
+            var settings = _settings.Load();
+            if (!settings.MonitoringEnabled)
+            {
+                return new RunNowResult
+                {
+                    Message = "保护已关闭，请先在设置中开启保护，再执行。"
+                };
+            }
+
+            var wanted = (ids ?? Enumerable.Empty<Guid>()).Distinct().ToList();
+            if (wanted.Count == 0)
+                return new RunNowResult { Message = "没有要执行的规则。" };
+
+            List<RuleBase> eligible;
+            lock (_sync)
+            {
+                eligible = wanted
+                    .Select(id => _ruleCache.FirstOrDefault(r => r.Id == id))
+                    .Where(r => r != null && IsRunnable(r, settings))
+                    .ToList();
+            }
+
+            if (eligible.Count == 0)
+            {
+                return new RunNowResult
+                {
+                    Skipped = wanted.Count,
+                    Message = "没有可执行的规则（不存在/停用/冲突/不适用）。"
+                };
+            }
+
+            return ExecuteManualRun(eligible, wanted.Count);
+        }
+
+        /// <summary>Executes the rules synchronously and returns real success/failure counts.</summary>
+        private RunNowResult ExecuteManualRun(List<RuleBase> rules, int total)
+        {
+            if (Interlocked.CompareExchange(ref _runInProgress, 1, 0) != 0)
+            {
+                return new RunNowResult
+                {
+                    Message = "上一次手动执行还没结束，请稍候再试。"
+                };
+            }
+
+            var succeeded = 0;
+            var failed = 0;
+
+            try
+            {
+                foreach (var rule in rules)
+                {
+                    IRuleModuleHandler handler;
+                    if (!_handlers.TryGetValue(rule.Module, out handler))
+                    {
+                        failed++;
+                        continue;
+                    }
+
+                    if (RunRule(rule, handler, ChangeOrigin.Manual, honorPause: false))
+                        succeeded++;
+                    else
+                        failed++;
+                }
+
+                RaiseTrace("manual run finished: " + rules.Count + " rule(s)");
+            }
+            catch (Exception ex)
+            {
+                RaiseTrace("manual run: " + ex.Message);
+            }
+            finally
+            {
+                Interlocked.Exchange(ref _runInProgress, 0);
+            }
+
+            var skipped = Math.Max(0, total - rules.Count);
+            var message = "已执行 " + (succeeded + failed) + " 条规则：完成 " + succeeded + " 条";
+            if (failed > 0)
+                message += "，出错 " + failed + " 条";
+            if (skipped > 0)
+                message += "，跳过 " + skipped + " 条（停用/冲突/不适用）";
+            message += "。";
+
+            return new RunNowResult
+            {
+                Started = true,
+                Queued = rules.Count,
+                Skipped = skipped,
+                Succeeded = succeeded,
+                Failed = failed,
+                Message = message
+            };
+        }
+
+        private bool IsRunnable(RuleBase rule, AppSettings settings)
+        {
+            if (rule == null || !rule.Enabled)
+                return false;
+
+            if (_conflicting.Contains(rule.Id))
+                return false;
+
+            if (!_handlers.ContainsKey(rule.Module))
+                return false;
+
+            var family = settings.OsOverride != OsFamily.Unknown ? settings.OsOverride : _os.Family;
+            return rule.Supports(family);
         }
 
         private void StopWatchers()
@@ -394,24 +713,6 @@ namespace EverDefault.Service.Hosting
         public ServiceStatus GetStatus()
         {
             var rules = _ruleCache;
-
-            int observed = 0, blocked = 0, failed = 0;
-            foreach (var entry in _log.Query(int.MaxValue))
-            {
-                if (entry.Utc < _startedUtc)
-                    continue;
-
-                var result = entry.Result ?? string.Empty;
-                if (string.Equals(result, "failed", StringComparison.OrdinalIgnoreCase))
-                    failed++;
-                else if (string.Equals(result, "logged", StringComparison.OrdinalIgnoreCase))
-                    observed++;
-                else if (string.Equals(result, "restored", StringComparison.OrdinalIgnoreCase)
-                         || string.Equals(result, "deleted", StringComparison.OrdinalIgnoreCase)
-                         || string.Equals(result, "removed", StringComparison.OrdinalIgnoreCase))
-                    blocked++;
-            }
-
             var settings = _settings.Load();
 
             return new ServiceStatus
@@ -425,56 +726,102 @@ namespace EverDefault.Service.Hosting
                 StartedUtc = _startedUtc,
                 ActiveWatchers = _watchers.Count,
                 RuleCount = rules.Count,
-                ObservedCount = observed,
-                BlockedCount = blocked,
-                FailedCount = failed
+                ObservedCount = Volatile.Read(ref _observedCount),
+                BlockedCount = Volatile.Read(ref _blockedCount),
+                FailedCount = Volatile.Read(ref _failedCount),
+                RulesRevision = Volatile.Read(ref _rulesRevision),
+                LogLastId = Interlocked.Read(ref _logLastId)
             };
         }
 
         public RuleListResult GetRules()
         {
-            var rules = _rules.GetAll();
-            var conflicts = _detector.Detect(rules);
+            List<RuleBase> rules;
+            List<ConflictReport> reports;
+            HashSet<Guid> conflicting;
+            lock (_sync)
+            {
+                rules = _ruleCache;
+                reports = _conflictReports;
+                conflicting = _conflicting;
+            }
 
             return new RuleListResult
             {
                 Rules = rules.ToList(),
-                Conflicts = conflicts.Select(c => c.ToString()).ToList(),
-                ConflictingRuleIds = conflicts
-                    .SelectMany(c => new[] { c.First, c.Second })
-                    .Where(r => r != null)
-                    .Select(r => r.Id)
-                    .Distinct()
-                    .ToList()
+                Conflicts = reports.Select(c => c.ToString()).ToList(),
+                ConflictingRuleIds = conflicting.ToList()
             };
         }
 
         public void SaveRule(RuleBase rule)
         {
-            _rules.Upsert(rule);
+            SaveRules(new[] { rule });
+        }
 
-            IRuleModuleHandler handler;
-            if (_handlers.TryGetValue(rule.Module, out handler))
-                handler.CaptureBaseline(rule);
+        public void SaveRules(IEnumerable<RuleBase> rules)
+        {
+            var list = (rules ?? Enumerable.Empty<RuleBase>())
+                .Where(r => r != null)
+                .ToList();
+            if (list.Count == 0)
+                return;
+
+            _rules.UpsertMany(list);
+
+            _baselines.BeginBatch();
+            try
+            {
+                foreach (var rule in list)
+                {
+                    IRuleModuleHandler handler;
+                    if (_handlers.TryGetValue(rule.Module, out handler))
+                        handler.CaptureBaseline(rule);
+                }
+            }
+            finally
+            {
+                _baselines.EndBatch();
+            }
 
             Reload();
         }
 
         public void DeleteRule(Guid id)
         {
-            _rules.Delete(id);
-            _baselines.DeleteForRule(id);
+            DeleteRules(new[] { id });
+        }
+
+        public void DeleteRules(IEnumerable<Guid> ids)
+        {
+            var list = (ids ?? Enumerable.Empty<Guid>()).Distinct().ToList();
+            if (list.Count == 0)
+                return;
+
+            _rules.DeleteMany(list);
+            _baselines.DeleteForRules(list);
             Reload();
         }
 
-        public IReadOnlyList<ChangeLogEntry> GetLog(int max, Guid? ruleId)
+        public IReadOnlyList<ChangeLogEntry> GetLog(int max, Guid? ruleId, long? afterId = null)
         {
-            return _log.Query(max, ruleId);
+            return afterId.HasValue
+                ? _log.QueryAfter(afterId.Value, max)
+                : _log.Query(max, ruleId);
+        }
+
+        public long GetLogLastId()
+        {
+            return _log.LastId;
         }
 
         public void ClearLog()
         {
             _log.Clear();
+            Interlocked.Exchange(ref _observedCount, 0);
+            Interlocked.Exchange(ref _blockedCount, 0);
+            Interlocked.Exchange(ref _failedCount, 0);
+            Interlocked.Exchange(ref _logLastId, 0);
         }
 
         public AppSettings GetSettings()
@@ -485,6 +832,7 @@ namespace EverDefault.Service.Hosting
         public void SaveSettings(AppSettings settings)
         {
             _settings.Save(settings);
+            MaintainLog(settings);
             Reload();
         }
 
@@ -602,6 +950,15 @@ namespace EverDefault.Service.Hosting
                 _userWatch.Dispose();
                 _userWatch = null;
             }
+
+            if (_logMaintenance != null)
+            {
+                _logMaintenance.Dispose();
+                _logMaintenance = null;
+            }
+
+            _log.Appended -= OnLogAppended;
+            _log.Flush();
 
             _pipe?.Dispose();
         }

@@ -145,6 +145,9 @@ namespace EverDefault.App
 
         public string RawDetail { get; set; }
 
+        /// <summary>Persists the expanded state when a virtualized container is recycled.</summary>
+        public bool IsExpanded { get; set; }
+
         public bool HasRawDetail
         {
             get { return !string.IsNullOrWhiteSpace(RawDetail); }
@@ -158,6 +161,11 @@ namespace EverDefault.App
 
     public static class ActivityFactory
     {
+        private static readonly Dictionary<string, string> ProgIdNames =
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+
+        private static readonly object ProgIdSync = new object();
+
         public static List<ActivityItem> Build(
             IEnumerable<ChangeLogEntry> entries, IDictionary<Guid, RuleBase> rules)
         {
@@ -166,38 +174,44 @@ namespace EverDefault.App
                 return list;
 
             foreach (var entry in entries.OrderByDescending(e => e.Utc))
-            {
-                RuleBase rule = null;
-                if (entry.RuleId.HasValue && rules != null)
-                    rules.TryGetValue(entry.RuleId.Value, out rule);
-
-                var result = entry.Result ?? string.Empty;
-                var failed = string.Equals(result, "failed", StringComparison.OrdinalIgnoreCase);
-                var logged = string.Equals(result, "logged", StringComparison.OrdinalIgnoreCase);
-                var blocked = string.Equals(result, "restored", StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(result, "deleted", StringComparison.OrdinalIgnoreCase)
-                              || string.Equals(result, "removed", StringComparison.OrdinalIgnoreCase);
-
-                var item = new ActivityItem
-                {
-                    Id = entry.Id,
-                    RuleId = entry.RuleId,
-                    Time = entry.Utc.ToLocalTime().ToString("MM-dd HH:mm:ss"),
-                    TimeText = Relative(entry.Utc),
-                    IsBlocked = blocked,
-                    IsFailed = failed,
-                    IsLogged = logged,
-                    CanAdjust = rule != null,
-                    RuleName = rule != null ? rule.Name : "(已删除的规则)",
-                    Glyph = failed ? "\uE7BA" : blocked ? "\uE73E" : "\uE946"
-                };
-
-                FillText(item, entry, rule);
-                item.RawDetail = BuildRaw(entry);
-                list.Add(item);
-            }
+                list.Add(BuildItem(entry, rules));
 
             return list;
+        }
+
+        public static ActivityItem BuildItem(ChangeLogEntry entry, IDictionary<Guid, RuleBase> rules)
+        {
+            if (entry == null)
+                return null;
+
+            RuleBase rule = null;
+            if (entry.RuleId.HasValue && rules != null)
+                rules.TryGetValue(entry.RuleId.Value, out rule);
+
+            var result = entry.Result ?? string.Empty;
+            var failed = string.Equals(result, "failed", StringComparison.OrdinalIgnoreCase);
+            var logged = string.Equals(result, "logged", StringComparison.OrdinalIgnoreCase);
+            var blocked = string.Equals(result, "restored", StringComparison.OrdinalIgnoreCase)
+                          || string.Equals(result, "deleted", StringComparison.OrdinalIgnoreCase)
+                          || string.Equals(result, "removed", StringComparison.OrdinalIgnoreCase);
+
+            var item = new ActivityItem
+            {
+                Id = entry.Id,
+                RuleId = entry.RuleId,
+                Time = entry.Utc.ToLocalTime().ToString("MM-dd HH:mm:ss"),
+                TimeText = Relative(entry.Utc),
+                IsBlocked = blocked,
+                IsFailed = failed,
+                IsLogged = logged,
+                CanAdjust = rule != null,
+                RuleName = rule != null ? rule.Name : "(已删除的规则)",
+                Glyph = failed ? "\uE7BA" : blocked ? "\uE73E" : "\uE946"
+            };
+
+            FillText(item, entry, rule);
+            item.RawDetail = BuildRaw(entry);
+            return item;
         }
 
         private static void FillText(ActivityItem item, ChangeLogEntry entry, RuleBase rule)
@@ -329,8 +343,21 @@ namespace EverDefault.App
             if (string.IsNullOrWhiteSpace(progId))
                 return null;
 
-            var app = AppDisplayResolver.FromProgId(progId);
-            return app == null || string.IsNullOrWhiteSpace(app.Name) ? progId : app.Name;
+            var key = progId.Trim();
+            lock (ProgIdSync)
+            {
+                string cached;
+                if (ProgIdNames.TryGetValue(key, out cached))
+                    return cached;
+            }
+
+            var app = AppDisplayResolver.FromProgId(key);
+            var name = app == null || string.IsNullOrWhiteSpace(app.Name) ? key : app.Name;
+
+            lock (ProgIdSync)
+                ProgIdNames[key] = name;
+
+            return name;
         }
 
         private static string LocationOf(string keyPath)
@@ -361,6 +388,8 @@ namespace EverDefault.App
         private static string BuildRaw(ChangeLogEntry entry)
         {
             var lines = new List<string>();
+            if (entry.Origin == ChangeOrigin.Manual)
+                lines.Add("来源：手动执行");
             if (!string.IsNullOrWhiteSpace(entry.KeyPath))
                 lines.Add(entry.KeyPath);
             if (!string.IsNullOrWhiteSpace(entry.ValueName))

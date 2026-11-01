@@ -73,7 +73,7 @@
                 <Button x:Name="StartButton" Content="开始保护" Style="{StaticResource PrimaryButton}"
                         Width="112" Margin="0,0,8,0" IsDefault="True" Click="OnStart" />
                 <Button x:Name="SkipButton" Content="跳过" Style="{StaticResource SubtleButton}"
-                        Width="80" Click="OnSkip" />
+                        Width="80" IsCancel="True" Click="OnSkip" />
             </StackPanel>
         </Grid>
     </Grid>

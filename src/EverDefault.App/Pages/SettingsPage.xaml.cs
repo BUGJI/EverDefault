@@ -48,6 +48,7 @@ namespace EverDefault.App
             CheckUpdatesBox.Checked += OnSettingChanged;
             CheckUpdatesBox.Unchecked += OnSettingChanged;
             ThemeBox.SelectionChanged += OnSettingChanged;
+            ThemeBox.SelectionChanged += OnThemePreview;
             UpdateIntervalBox.SelectionChanged += OnSettingChanged;
             OsBox.SelectionChanged += OnSettingChanged;
             UserScopeBox.SelectionChanged += OnSettingChanged;
@@ -73,17 +74,11 @@ namespace EverDefault.App
 
             UpdateModeText();
 
-            OfflineBanner.Visibility = _serviceRunning
-                ? Visibility.Collapsed
-                : Visibility.Visible;
-            OfflineText.Text = snapshot.ServiceStarting
-                ? "正在启动后台保护，请稍候…"
-                : "后台保护未运行，无法读取或保存设置。";
             ClearLogButton.IsEnabled = _serviceRunning;
 
             if (!snapshot.ServiceRunning)
             {
-                Hint.Text = "后台服务未运行，无法读取或保存设置。";
+                Hint.Text = "后台服务未运行，暂时无法读取或保存设置。";
                 SaveButton.IsEnabled = false;
                 return;
             }
@@ -95,9 +90,18 @@ namespace EverDefault.App
                 LoadAsync();
         }
 
-        private void OnStartService(object sender, RoutedEventArgs e)
+        public bool HasUnsavedChanges
         {
-            ServiceConnector.TryStart(_host);
+            get { return _dirty; }
+        }
+
+        private void OnThemePreview(object sender, SelectionChangedEventArgs e)
+        {
+            if (_suppressDirty || !_loaded)
+                return;
+
+            if (ThemeBox.SelectedValue is ThemeMode)
+                ThemeManager.Apply((ThemeMode)ThemeBox.SelectedValue);
         }
 
         private async Task RefreshModeSectionAsync(bool forceCheck = false)
@@ -327,11 +331,16 @@ namespace EverDefault.App
 
         private async void OnSave(object sender, RoutedEventArgs e)
         {
+            await SaveAsync();
+        }
+
+        private async Task<bool> SaveAsync()
+        {
             int retention;
             if (!int.TryParse(RetentionBox.Text, out retention) || retention <= 0)
             {
                 StatusText.Text = "日志保留天数必须是大于 0 的整数。";
-                return;
+                return false;
             }
 
             var settings = _current ?? new AppSettings();
@@ -351,7 +360,7 @@ namespace EverDefault.App
             if (!response.Success)
             {
                 StatusText.Text = "服务未运行，设置未保存：" + response.Error;
-                return;
+                return false;
             }
 
             StatusText.Text = "已保存设置。";
@@ -359,6 +368,15 @@ namespace EverDefault.App
             DirtyText.Visibility = Visibility.Collapsed;
             _host.ApplyUserSettings(settings);
             _host.Refresh();
+            return true;
+        }
+
+        private async void OnRunWizard(object sender, RoutedEventArgs e)
+        {
+            if (_dirty && !await SaveAsync())
+                return;
+
+            _host.ShowOnboarding();
         }
 
         private void OnReload(object sender, RoutedEventArgs e)

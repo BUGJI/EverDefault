@@ -17,17 +17,107 @@ namespace EverDefault.Core.Engine
             var reports = new List<ConflictReport>();
             var list = rules.Where(r => r != null && r.Enabled).ToList();
 
-            for (int i = 0; i < list.Count; i++)
-            {
-                for (int j = i + 1; j < list.Count; j++)
-                {
-                    var report = Compare(list[i], list[j]);
-                    if (report != null)
-                        reports.Add(report);
-                }
-            }
+            DetectCustomConflicts(list, reports);
+            DetectDefaultAppConflicts(list, reports);
 
             return reports;
+        }
+
+        /// <summary>
+        /// Custom rules can only conflict when they target the same value name, so group by
+        /// it instead of comparing every pair.
+        /// </summary>
+        private static void DetectCustomConflicts(
+            List<RuleBase> rules, List<ConflictReport> reports)
+        {
+            var groups = new Dictionary<string, List<CustomRegistryRule>>(System.StringComparer.OrdinalIgnoreCase);
+            foreach (var custom in rules.OfType<CustomRegistryRule>())
+            {
+                var key = custom.ValueName ?? string.Empty;
+                List<CustomRegistryRule> group;
+                if (!groups.TryGetValue(key, out group))
+                {
+                    group = new List<CustomRegistryRule>();
+                    groups[key] = group;
+                }
+
+                group.Add(custom);
+            }
+
+            foreach (var group in groups.Values)
+            {
+                for (var i = 0; i < group.Count; i++)
+                {
+                    for (var j = i + 1; j < group.Count; j++)
+                    {
+                        var report = CompareCustom(group[i], group[j]);
+                        if (report != null)
+                            reports.Add(report);
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Default-app rules can only conflict when they share an extension or protocol, so
+        /// index by those targets and compare each overlapping pair once.
+        /// </summary>
+        private static void DetectDefaultAppConflicts(
+            List<RuleBase> rules, List<ConflictReport> reports)
+        {
+            var apps = rules.OfType<DefaultAppRule>().ToList();
+            if (apps.Count < 2)
+                return;
+
+            var groups = new Dictionary<string, List<int>>(System.StringComparer.OrdinalIgnoreCase);
+            for (var i = 0; i < apps.Count; i++)
+            {
+                foreach (var extension in NormalizeExtensions(apps[i].Extensions))
+                    AddToGroup(groups, extension, i);
+
+                foreach (var protocol in NormalizeProtocols(apps[i].Protocols))
+                    AddToGroup(groups, protocol, i);
+            }
+
+            var seen = new HashSet<long>();
+            foreach (var group in groups.Values)
+            {
+                for (var i = 0; i < group.Count; i++)
+                {
+                    for (var j = i + 1; j < group.Count; j++)
+                    {
+                        var first = group[i];
+                        var second = group[j];
+                        if (first > second)
+                        {
+                            var swap = first;
+                            first = second;
+                            second = swap;
+                        }
+
+                        var key = ((long)first << 32) | (uint)second;
+                        if (!seen.Add(key))
+                            continue;
+
+                        var report = Compare(apps[first], apps[second]);
+                        if (report != null)
+                            reports.Add(report);
+                    }
+                }
+            }
+        }
+
+        private static void AddToGroup(Dictionary<string, List<int>> groups, string key, int index)
+        {
+            List<int> group;
+            if (!groups.TryGetValue(key, out group))
+            {
+                group = new List<int>();
+                groups[key] = group;
+            }
+
+            if (group.Count == 0 || group[group.Count - 1] != index)
+                group.Add(index);
         }
 
         /// <summary>Returns the set of rule ids involved in any conflict.</summary>

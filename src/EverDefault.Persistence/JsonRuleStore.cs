@@ -57,12 +57,60 @@ namespace EverDefault.Persistence
             }
         }
 
-        public void Delete(Guid id)
+        public void UpsertMany(IEnumerable<RuleBase> rules)
         {
+            if (rules == null)
+                return;
+
+            var incoming = rules.Where(r => r != null).ToList();
+            if (incoming.Count == 0)
+                return;
+
             lock (_sync)
             {
                 var list = Load();
-                if (list.RemoveAll(r => r.Id == id) > 0)
+                var index = new Dictionary<Guid, int>(list.Count);
+                for (var i = 0; i < list.Count; i++)
+                    index[list[i].Id] = i;
+
+                var now = DateTime.UtcNow;
+                foreach (var rule in incoming)
+                {
+                    rule.UpdatedUtc = now;
+                    int position;
+                    if (index.TryGetValue(rule.Id, out position))
+                    {
+                        list[position] = rule;
+                    }
+                    else
+                    {
+                        index[rule.Id] = list.Count;
+                        list.Add(rule);
+                    }
+                }
+
+                Save(list);
+            }
+        }
+
+        public void Delete(Guid id)
+        {
+            DeleteMany(new[] { id });
+        }
+
+        public void DeleteMany(IEnumerable<Guid> ids)
+        {
+            if (ids == null)
+                return;
+
+            var wanted = new HashSet<Guid>(ids);
+            if (wanted.Count == 0)
+                return;
+
+            lock (_sync)
+            {
+                var list = Load();
+                if (list.RemoveAll(r => wanted.Contains(r.Id)) > 0)
                     Save(list);
             }
         }

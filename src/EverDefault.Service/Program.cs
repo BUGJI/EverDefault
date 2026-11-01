@@ -139,7 +139,7 @@ namespace EverDefault.Service
             }
 
             var client = new PipeClient();
-            var ok = 0;
+            var payload = new System.Collections.Generic.List<string>();
             foreach (var dto in document.Rules)
             {
                 string error;
@@ -150,13 +150,21 @@ namespace EverDefault.Service
                     continue;
                 }
 
-                var response = client.Send(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                Console.WriteLine((response.Success ? "ok  " : "FAIL") + " " + rule.Name
-                                  + (response.Success ? string.Empty : " -> " + response.Error));
-                if (response.Success) ok++;
+                payload.Add(RuleCodec.Serialize(rule));
             }
 
-            Console.WriteLine("imported " + ok + "/" + document.Rules.Count);
+            if (payload.Count == 0)
+            {
+                Console.WriteLine("imported 0/" + document.Rules.Count);
+                return;
+            }
+
+            var response = client.Send(IpcProtocol.CommandSaveRules, payload);
+            Console.WriteLine(response.Success
+                ? "ok   " + payload.Count + " rule(s)"
+                : "FAIL -> " + response.Error);
+            Console.WriteLine("imported " + (response.Success ? payload.Count : 0)
+                              + "/" + document.Rules.Count);
         }
 
         private static void RunGetLog()

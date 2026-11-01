@@ -11,6 +11,7 @@
         WindowStartupLocation="CenterScreen"
         WindowStyle="None"
         StateChanged="OnWindowStateChanged"
+        PreviewKeyDown="OnPreviewKeyDown"
         Loaded="OnLoaded">
     <shell:WindowChrome.WindowChrome>
         <shell:WindowChrome CaptionHeight="46" ResizeBorderThickness="6"
@@ -119,6 +120,7 @@
         <Grid>
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
                 <RowDefinition Height="*" />
             </Grid.RowDefinitions>
 
@@ -187,7 +189,20 @@
             </Grid>
         </Border>
 
-        <Grid Grid.Row="1">
+        <Border x:Name="ServiceBanner" Grid.Row="1" Visibility="Collapsed"
+                Background="{DynamicResource WarningSubtleBrush}"
+                BorderBrush="{DynamicResource WarningBrush}" BorderThickness="0,0,0,1"
+                Padding="16,8">
+            <DockPanel>
+                <Button x:Name="ServiceBannerButton" DockPanel.Dock="Right" Content="启动后台保护"
+                        MinWidth="118" Margin="12,0,0,0" Click="OnStartServiceFromBanner" />
+                <TextBlock x:Name="ServiceBannerText" VerticalAlignment="Center" TextWrapping="Wrap"
+                           Foreground="{DynamicResource WarningBrush}"
+                           Text="后台保护未运行，保护可能没有生效。" />
+            </DockPanel>
+        </Border>
+
+        <Grid Grid.Row="2">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="232" />
                 <ColumnDefinition Width="*" />
@@ -269,16 +284,36 @@
             <Grid Grid.Column="1" x:Name="PageHost" Margin="20,18" />
         </Grid>
 
-        <Border x:Name="ToastBanner" Grid.Row="0" Grid.RowSpan="2" Panel.ZIndex="20"
+        <Border x:Name="ToastBanner" Grid.Row="0" Grid.RowSpan="3" Panel.ZIndex="20"
                 HorizontalAlignment="Right" VerticalAlignment="Bottom"
                 Margin="0,0,24,24" MaxWidth="460" Padding="14,10"
                 CornerRadius="{StaticResource RadiusCard}"
                 Background="{DynamicResource SurfaceAltBrush}"
                 BorderBrush="{DynamicResource AccentBrush}" BorderThickness="1"
-                Visibility="Collapsed" IsHitTestVisible="False">
-            <TextBlock x:Name="ToastText" TextWrapping="Wrap"
-                       FontSize="{StaticResource FontSizeBody}"
-                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                Visibility="Collapsed"
+                MouseEnter="OnToastMouseEnter" MouseLeave="OnToastMouseLeave">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock x:Name="ToastText" TextWrapping="Wrap" VerticalAlignment="Center"
+                           FontSize="{StaticResource FontSizeBody}"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Top"
+                            Margin="12,0,0,0">
+                    <Button Content="复制" Style="{StaticResource SubtleButton}"
+                            MinWidth="44" MinHeight="0" Padding="8,2"
+                            FontSize="{StaticResource FontSizeCaption}"
+                            AutomationProperties.Name="复制提示内容"
+                            ToolTip="复制提示内容" Click="OnToastCopy" />
+                    <Button Content="关闭" Style="{StaticResource SubtleButton}"
+                            MinWidth="44" MinHeight="0" Padding="8,2" Margin="4,0,0,0"
+                            FontSize="{StaticResource FontSizeCaption}"
+                            AutomationProperties.Name="关闭提示"
+                            ToolTip="关闭提示" Click="OnToastClose" />
+                </StackPanel>
+            </Grid>
         </Border>
         </Grid>
     </Border>

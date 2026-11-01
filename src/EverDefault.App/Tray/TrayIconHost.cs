@@ -19,10 +19,13 @@ namespace EverDefault.App.Tray
         private readonly Window _window;
         private readonly Action _shutdown;
         private readonly Action _togglePause;
+        private readonly Action<int> _pauseFor;
+        private readonly Func<bool> _canExit;
         private readonly Action<Guid?> _notificationActivated;
         private readonly Action _openActivity;
         private readonly Action _openSettings;
         private readonly WinForms.ToolStripMenuItem _pauseItem;
+        private readonly WinForms.ToolStripMenuItem _durationMenu;
 
         private bool _shutdownRequested;
         private bool _closeHintShown;
@@ -34,7 +37,9 @@ namespace EverDefault.App.Tray
             Action togglePause,
             Action<Guid?> notificationActivated,
             Action openActivity = null,
-            Action openSettings = null)
+            Action openSettings = null,
+            Action<int> pauseFor = null,
+            Func<bool> canExit = null)
         {
             _window = window;
             _shutdown = shutdown;
@@ -42,6 +47,8 @@ namespace EverDefault.App.Tray
             _notificationActivated = notificationActivated;
             _openActivity = openActivity;
             _openSettings = openSettings;
+            _pauseFor = pauseFor;
+            _canExit = canExit;
 
             _icon = new WinForms.NotifyIcon
             {
@@ -61,6 +68,12 @@ namespace EverDefault.App.Tray
                     handler();
             };
             menu.Items.Add(_pauseItem);
+
+            _durationMenu = new WinForms.ToolStripMenuItem("暂停时长");
+            _durationMenu.DropDownItems.Add("15 分钟", null, (s, e) => InvokePauseFor(15));
+            _durationMenu.DropDownItems.Add("1 小时", null, (s, e) => InvokePauseFor(60));
+            _durationMenu.DropDownItems.Add("8 小时", null, (s, e) => InvokePauseFor(480));
+            menu.Items.Add(_durationMenu);
 
             menu.Items.Add("查看活动", null, (s, e) =>
             {
@@ -116,6 +129,7 @@ namespace EverDefault.App.Tray
             _icon.Text = tooltip.Length > 63 ? tooltip.Substring(0, 63) : tooltip;
 
             _pauseItem.Enabled = state != TrayProtectionState.Unavailable;
+            _durationMenu.Enabled = state != TrayProtectionState.Unavailable;
             _pauseItem.Text = state == TrayProtectionState.Paused
                 ? "恢复保护"
                 : state == TrayProtectionState.Disabled
@@ -161,8 +175,18 @@ namespace EverDefault.App.Tray
             _window.Activate();
         }
 
+        private void InvokePauseFor(int minutes)
+        {
+            var handler = _pauseFor;
+            if (handler != null)
+                handler(minutes);
+        }
+
         private void Exit()
         {
+            if (_canExit != null && !_canExit())
+                return;
+
             _shutdownRequested = true;
             _shutdown?.Invoke();
         }

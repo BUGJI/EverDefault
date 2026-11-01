@@ -21,6 +21,7 @@ namespace EverDefault.App
         private bool _suppressSelection;
         private bool _suppressFilter;
         private List<RuleRow> _allRows = new List<RuleRow>();
+        private List<RuleRow> _lastRules;
 
         public RuleModulePage(IAppHost host, RuleModule module)
         {
@@ -75,10 +76,12 @@ namespace EverDefault.App
 
         public void ApplySnapshot(RefreshSnapshot snapshot)
         {
+            var serviceChanged = _serviceRunning != snapshot.ServiceRunning;
             _serviceRunning = snapshot.ServiceRunning;
 
-            if (snapshot.Rules != null)
+            if (snapshot.Rules != null && !ReferenceEquals(snapshot.Rules, _lastRules))
             {
+                _lastRules = snapshot.Rules;
                 _allRows = snapshot.Rules.Where(r => r.Rule.Module == _module).ToList();
 
                 if (_selectedId.HasValue && !_allRows.Any(r => r.Rule.Id == _selectedId.Value))
@@ -89,7 +92,7 @@ namespace EverDefault.App
 
                 RebuildView();
             }
-            else
+            else if (snapshot.Rules == null && serviceChanged)
             {
                 RebuildView();
             }
@@ -187,6 +190,7 @@ namespace EverDefault.App
             NewButton.IsEnabled = _serviceRunning;
             MoreButton.IsEnabled = _serviceRunning;
             DeleteButton.IsEnabled = _serviceRunning && current != null;
+            RunRuleButton.IsEnabled = _serviceRunning && current != null && current.Rule.Enabled;
             ChangeAppMenuItem.IsEnabled = _serviceRunning && current != null && current.Rule is DefaultAppRule;
             GroupApplyMenuItem.IsEnabled = _serviceRunning;
             ImportFormatsMenuItem.IsEnabled = _serviceRunning;
@@ -273,6 +277,38 @@ namespace EverDefault.App
             _host.Refresh();
         }
 
+        private async void OnRunSelected(object sender, RoutedEventArgs e)
+        {
+            var current = CurrentRule();
+            if (current == null)
+            {
+                _host.ShowInfo("请先选择要执行的规则。");
+                return;
+            }
+
+            var response = await _host.SendAsync(
+                IpcProtocol.CommandRunRule, current.Rule.Id.ToString());
+            if (!response.Success)
+            {
+                _host.ShowWarning("执行失败：" + response.Error);
+                return;
+            }
+
+            var result = PipeJson.Deserialize<RunNowResult>(response.Payload);
+            if (result == null)
+            {
+                _host.Refresh();
+                return;
+            }
+
+            if (result.Started && result.Failed == 0)
+                _host.ShowInfo(result.Message);
+            else
+                _host.ShowWarning(result.Message);
+
+            _host.Refresh();
+        }
+
         private async void OnEditorSave(object sender, EventArgs e)
         {
             string error;
@@ -283,18 +319,33 @@ namespace EverDefault.App
                 return;
             }
 
-            var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-            if (!response.Success)
+            var outcome = await RuleApply.SaveAndRunAsync(
+                _host, new[] { rule }, showMessages: false);
+            if (!outcome.Saved)
             {
-                Editor.ShowError("服务未运行，规则未保存：\n" + response.Error);
+                Editor.ShowError("服务未运行，规则未保存：\n" + outcome.Error);
                 return;
             }
 
             Editor.AcceptSaved(rule);
-            Editor.ShowStatus("已保存");
+            Editor.ShowStatus(DescribeSave(outcome));
             _selectedId = rule.Id;
             _host.Refresh();
             UpdateButtons();
+        }
+
+        private static string DescribeSave(SaveApplyOutcome outcome)
+        {
+            if (outcome.Declined)
+                return "已保存，未立即应用";
+
+            if (outcome.Result == null)
+                return "已保存";
+
+            if (!outcome.Result.Started)
+                return "已保存（未应用）";
+
+            return outcome.Result.Failed > 0 ? "已保存，应用有失败" : "已保存并应用";
         }
 
         private void OnEditorReset(object sender, EventArgs e)
@@ -364,16 +415,17 @@ namespace EverDefault.App
                 ManageFileAssociation = primary.ManageFileAssociation
             };
 
-            var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(updated));
-            if (!response.Success)
+            var outcome = await RuleApply.SaveAndRunAsync(
+                _host, new[] { updated }, "已换应用。", showMessages: false);
+            if (!outcome.Saved)
             {
-                _host.ShowWarning("保存失败：\n" + response.Error);
+                _host.ShowWarning("保存失败：\n" + outcome.Error);
                 return;
             }
 
             _selectedId = updated.Id;
             Editor.LoadRule(updated);
-            Editor.ShowStatus("已换应用");
+            Editor.ShowStatus(DescribeSave(outcome));
             _host.Refresh();
             UpdateButtons();
         }
@@ -398,24 +450,14 @@ namespace EverDefault.App
 
         private async System.Threading.Tasks.Task SaveRules(IEnumerable<DefaultAppRule> rules)
         {
-            var succeeded = 0;
-            var errors = new List<string>();
-            foreach (var rule in rules)
-            {
-                var response = await _host.SendAsync(IpcProtocol.CommandSaveRule, RuleCodec.Serialize(rule));
-                if (response.Success)
-                    succeeded++;
-                else
-                    errors.Add(rule.Name + ": " + response.Error);
-            }
+            var list = (rules ?? Enumerable.Empty<DefaultAppRule>())
+                .Where(r => r != null)
+                .ToList();
+            if (list.Count == 0)
+                return;
 
+            await RuleApply.SaveAndRunAsync(_host, list, "已生成 " + list.Count + " 条规则。");
             _host.Refresh();
-
-            if (errors.Count > 0)
-                _host.ShowWarning("生成完成：成功 " + succeeded + " 条，失败 " + errors.Count + " 条。\n"
-                    + string.Join("\n", errors.Take(8)));
-            else
-                _host.ShowInfo("已生成 " + succeeded + " 条规则。");
         }
 
         private async void OnTestRule(object sender, RoutedEventArgs e)
@@ -451,10 +493,22 @@ namespace EverDefault.App
 
         private void OnSearchChanged(object sender, TextChangedEventArgs e)
         {
-            SearchPlaceholder.Visibility = string.IsNullOrEmpty(SearchBox.Text)
-                ? Visibility.Visible
-                : Visibility.Collapsed;
+            var empty = string.IsNullOrEmpty(SearchBox.Text);
+            SearchPlaceholder.Visibility = empty ? Visibility.Visible : Visibility.Collapsed;
+            ClearSearchButton.Visibility = empty ? Visibility.Collapsed : Visibility.Visible;
             RebuildView();
+        }
+
+        private void OnClearSearch(object sender, RoutedEventArgs e)
+        {
+            SearchBox.Text = string.Empty;
+            SearchBox.Focus();
+        }
+
+        public void FocusSearch()
+        {
+            SearchBox.Focus();
+            SearchBox.SelectAll();
         }
 
         private void OnFilterChanged(object sender, SelectionChangedEventArgs e)
